@@ -434,11 +434,11 @@ impl ParenPad {
         let before_pos = rparen.range().start();
 
         // Check if the previous char is an opening paren (empty parens)
-        if let Some(prev_char) = char_before(ctx.source(), before_pos) {
-            if prev_char == '(' {
-                // Empty parens, don't check
-                return diagnostics;
-            }
+        if let Some(prev_char) = char_before(ctx.source(), before_pos)
+            && prev_char == '('
+        {
+            // Empty parens, don't check
+            return diagnostics;
         }
 
         // Check if there's a newline in the whitespace before ) (multi-line expression)
@@ -618,7 +618,10 @@ mod tests {
         assert!(
             paren_violations.is_empty(),
             "Should not flag ) in for loop with empty iterator. Found: {:?}",
-            paren_violations.iter().map(|d| &d.kind.body).collect::<Vec<_>>()
+            paren_violations
+                .iter()
+                .map(|d| &d.kind.body)
+                .collect::<Vec<_>>()
         );
     }
 }

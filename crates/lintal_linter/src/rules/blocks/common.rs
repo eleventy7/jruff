@@ -38,5 +38,8 @@ pub fn has_line_break_before(source: &str, pos: TextSize) -> bool {
 
 /// Get column number (1-indexed) for a node.
 pub fn get_column(ctx: &CheckContext, node: &CstNode) -> usize {
-    ctx.source_code().line_column(node.range().start()).column.get()
+    ctx.source_code()
+        .line_column(node.range().start())
+        .column
+        .get()
 }

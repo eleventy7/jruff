@@ -371,12 +371,12 @@ fn is_unary_op(node: &CstNode) -> bool {
 /// In tree-sitter, update_expression contains the operator and operand.
 /// For prefix, the operator comes first; for postfix, the operand comes first.
 fn is_prefix_update_op(node: &CstNode) -> bool {
-    if let Some(parent) = node.parent() {
-        if parent.kind() == "update_expression" {
-            // If this node is the first child, it's prefix
-            if let Some(first_child) = parent.children().next() {
-                return first_child.range().start() == node.range().start();
-            }
+    if let Some(parent) = node.parent()
+        && parent.kind() == "update_expression"
+    {
+        // If this node is the first child, it's prefix
+        if let Some(first_child) = parent.children().next() {
+            return first_child.range().start() == node.range().start();
         }
     }
     false

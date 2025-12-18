@@ -51,13 +51,7 @@ impl PlainTextCommentFilterConfig {
         // Parse check_format to determine which capture group to use
         // "$1" means first capture group, "$2" means second, etc.
         let check_format_group = check_format
-            .and_then(|fmt| {
-                if fmt.starts_with('$') {
-                    fmt[1..].parse::<usize>().ok()
-                } else {
-                    None
-                }
-            })
+            .and_then(|fmt| fmt.strip_prefix('$').and_then(|s| s.parse::<usize>().ok()))
             .unwrap_or(0);
 
         Some(Self {
@@ -69,12 +63,8 @@ impl PlainTextCommentFilterConfig {
 
     /// Create the default checkstyle suppression filter.
     pub fn checkstyle_default() -> Self {
-        Self::new(
-            r"CHECKSTYLE:OFF:(\w+)",
-            r"CHECKSTYLE:ON:(\w+)",
-            Some("$1"),
-        )
-        .expect("Default patterns should be valid")
+        Self::new(r"CHECKSTYLE:OFF:(\w+)", r"CHECKSTYLE:ON:(\w+)", Some("$1"))
+            .expect("Default patterns should be valid")
     }
 }
 
@@ -413,12 +403,9 @@ impl SuppressionContext {
         let content = text.trim_matches('"');
 
         // Check for checkstyle prefix
-        if let Some(rule) = content.strip_prefix("checkstyle:") {
-            Some(rule.to_string())
-        } else {
-            // Not a checkstyle suppression
-            None
-        }
+        content
+            .strip_prefix("checkstyle:")
+            .map(|rule| rule.to_string())
     }
 }
 
@@ -508,12 +495,9 @@ class Foo {
 }
 "#;
 
-        let filter = PlainTextCommentFilterConfig::new(
-            r"@suppress:(\w+)",
-            r"@unsuppress:(\w+)",
-            Some("$1"),
-        )
-        .unwrap();
+        let filter =
+            PlainTextCommentFilterConfig::new(r"@suppress:(\w+)", r"@unsuppress:(\w+)", Some("$1"))
+                .unwrap();
 
         let ctx = SuppressionContext::from_source(source, &[filter]);
 

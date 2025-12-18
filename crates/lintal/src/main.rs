@@ -7,7 +7,9 @@ use lintal_checkstyle::{CheckstyleConfig, ConfiguredRule, LintalConfig, MergedCo
 use lintal_diagnostics::{Applicability, Diagnostic, Edit};
 use lintal_java_cst::{CstNode, TreeWalker};
 use lintal_java_parser::JavaParser;
-use lintal_linter::{CheckContext, PlainTextCommentFilterConfig, Rule, RuleRegistry, SuppressionContext};
+use lintal_linter::{
+    CheckContext, PlainTextCommentFilterConfig, Rule, RuleRegistry, SuppressionContext,
+};
 use lintal_text_size::Ranged;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -143,7 +145,13 @@ fn run_fix(
     let mut files_changed = 0;
 
     for path in collect_java_files(paths) {
-        let (fixed, unfixable, changed) = fix_file(&path, &rules, &suppression_filters, applicability, diff_only)?;
+        let (fixed, unfixable, changed) = fix_file(
+            &path,
+            &rules,
+            &suppression_filters,
+            applicability,
+            diff_only,
+        )?;
         total_fixed += fixed;
         total_unfixable += unfixable;
         if changed {
@@ -493,10 +501,10 @@ fn extract_suppression_filters(config: &CheckstyleConfig) -> Vec<PlainTextCommen
 
     // Look for SuppressWithPlainTextCommentFilter modules
     for module in &config.modules {
-        if module.name == "SuppressWithPlainTextCommentFilter" {
-            if let Some(filter) = create_filter_from_module(module) {
-                filters.push(filter);
-            }
+        if module.name == "SuppressWithPlainTextCommentFilter"
+            && let Some(filter) = create_filter_from_module(module)
+        {
+            filters.push(filter);
         }
     }
 

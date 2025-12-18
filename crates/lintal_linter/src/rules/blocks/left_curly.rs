@@ -308,7 +308,10 @@ impl LeftCurly {
 
     /// Get column number (1-indexed) for a node.
     fn get_column(ctx: &CheckContext, node: &CstNode) -> usize {
-        ctx.source_code().line_column(node.range().start()).column.get()
+        ctx.source_code()
+            .line_column(node.range().start())
+            .column
+            .get()
     }
 
     /// Check if there's only whitespace before a node on its line.
