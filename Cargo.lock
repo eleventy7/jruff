@@ -321,6 +321,7 @@ dependencies = [
  "lintal_java_parser",
  "lintal_source_file",
  "lintal_text_size",
+ "regex",
 ]
 
 [[package]]
