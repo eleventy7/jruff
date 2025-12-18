@@ -49,7 +49,7 @@ impl RuleRegistry {
     /// Register all built-in rules.
     fn register_builtins(&mut self) {
         use crate::rules::{
-            EmptyForInitializerPad, FileTabCharacter, MethodParamPad, NoWhitespaceAfter,
+            EmptyForInitializerPad, FileTabCharacter, LeftCurly, MethodParamPad, NoWhitespaceAfter,
             NoWhitespaceBefore, ParenPad, RightCurly, SingleSpaceSeparator, TypecastParenPad,
             WhitespaceAfter, WhitespaceAround,
         };
@@ -63,6 +63,7 @@ impl RuleRegistry {
         self.register::<EmptyForInitializerPad>();
         self.register::<TypecastParenPad>();
         self.register::<FileTabCharacter>();
+        self.register::<LeftCurly>();
         self.register::<RightCurly>();
         // Additional rules will be registered here as they're implemented
     }
