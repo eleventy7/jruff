@@ -114,17 +114,13 @@ fn test_default_option() {
 
     let violations = check_left_curly(&source, "eol", None);
 
-    // Expected violations from checkstyle test
-    // NOTE: Checkstyle reports line 17 (top-level class), but we currently don't
-    // Also: We incorrectly report line 69 (while with comment) - needs investigation
+    // Expected violations from checkstyle test (see LeftCurlyCheckTest.java:testDefault)
     let expected = vec![
-        // Violation::line_previous(17, 1),  // TODO: Fix - missing top-level class
+        Violation::line_previous(17, 1),  // Top-level class
         Violation::line_previous(19, 5),
         Violation::line_previous(23, 5),
         Violation::line_previous(27, 5),
         Violation::line_previous(31, 5),
-        // Violation at line 69 is a false positive - TODO: Fix
-        Violation::line_break_after(69, 25), // False positive - should not appear
     ];
 
     assert_eq!(
@@ -133,14 +129,7 @@ fn test_default_option() {
     );
 }
 
-// TODO: Enable these tests once the known issues are fixed
-// Known issues:
-// 1. Missing top-level class declarations (line 17)
-// 2. False positive line.break.after for empty blocks with comments
-// 3. Reporting both line.previous and line.break.after when should only report one
-
 #[test]
-#[ignore]
 fn test_nl_option() {
     let Some(source) = load_leftcurly_fixture("InputLeftCurlyDefaultTestNl.java") else {
         eprintln!("Skipping test - checkstyle repo not available");
@@ -170,7 +159,6 @@ fn test_nl_option() {
 }
 
 #[test]
-#[ignore]
 fn test_method_declarations() {
     let Some(source) = load_leftcurly_fixture("InputLeftCurlyMethod.java") else {
         eprintln!("Skipping test - checkstyle repo not available");
