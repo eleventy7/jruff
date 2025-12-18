@@ -286,8 +286,8 @@ impl RightCurly {
     }
 
     fn brace_line_info(ctx: &CheckContext, brace: &CstNode) -> Option<BraceLineInfo> {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let line = source_code.line_column(brace.range().start()).line;
         let line_start = line_index.line_start(line, ctx.source());
         let line_end = line_index.line_end(line, ctx.source());
@@ -310,8 +310,8 @@ impl RightCurly {
     }
 
     fn line_indent(ctx: &CheckContext, pos: TextSize) -> String {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let line = source_code.line_column(pos).line;
         let line_start = line_index.line_start(line, ctx.source());
         let prefix = &ctx.source()[usize::from(line_start)..usize::from(pos)];
@@ -338,8 +338,8 @@ impl RightCurly {
             return None;
         }
         let next_start = next_token.range().start();
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let next_line = source_code.line_column(next_start).line;
         let next_line_start = line_index.line_start(next_line, ctx.source());
         let next_line_end_exclusive = line_index.line_end_exclusive(next_line, ctx.source());
@@ -389,7 +389,7 @@ impl RightCurly {
                 // Check for line break before violation (SAME option only)
                 if self.option == RightCurlyOption::Same
                     && !Self::has_line_break_before(ctx, &rcurly)
-                    && !are_on_same_line(ctx.source(), &lcurly, &rcurly)
+                    && !are_on_same_line(ctx, &lcurly, &rcurly)
                 {
                     diagnostics.push(Diagnostic::new(
                         RightCurlyShouldHaveLineBreakBefore {
@@ -409,7 +409,7 @@ impl RightCurly {
                 let next_token = else_token.unwrap_or(alternative);
                 match self.option {
                     RightCurlyOption::Same => {
-                        if !are_on_same_line(ctx.source(), &rcurly, &alternative) {
+                        if !are_on_same_line(ctx, &rcurly, &alternative) {
                             let mut diagnostic = Diagnostic::new(
                                 RightCurlyShouldBeSameLine {
                                     column: Self::get_column(ctx, &rcurly),
@@ -426,7 +426,7 @@ impl RightCurly {
                         if !Self::should_be_alone(
                             ctx,
                             &rcurly,
-                            self.option == RightCurlyOption::AloneOrSingleline,
+                            self.option == RightCurlyOption::AloneOrSingleline, // Only ALONE_OR_SINGLELINE allows single-line blocks
                             &consequence,
                         ) {
                             let mut diagnostic = Diagnostic::new(
@@ -478,7 +478,7 @@ impl RightCurly {
                 // This is not the last block
                 match self.option {
                     RightCurlyOption::Same => {
-                        if !are_on_same_line(ctx.source(), &rcurly, &next_clause) {
+                        if !are_on_same_line(ctx, &rcurly, &next_clause) {
                             let mut diagnostic = Diagnostic::new(
                                 RightCurlyShouldBeSameLine {
                                     column: Self::get_column(ctx, &rcurly),
@@ -495,7 +495,7 @@ impl RightCurly {
                         if !Self::should_be_alone(
                             ctx,
                             &rcurly,
-                            self.option == RightCurlyOption::AloneOrSingleline,
+                            self.option == RightCurlyOption::AloneOrSingleline, // Only ALONE_OR_SINGLELINE allows single-line blocks
                             &body,
                         ) {
                             let mut diagnostic = Diagnostic::new(
@@ -533,7 +533,7 @@ impl RightCurly {
                 // Check for line break before violation (SAME option only)
                 if self.option == RightCurlyOption::Same
                     && !Self::has_line_break_before(ctx, &rcurly)
-                    && !are_on_same_line(ctx.source(), &lcurly, &rcurly)
+                    && !are_on_same_line(ctx, &lcurly, &rcurly)
                 {
                     diagnostics.push(Diagnostic::new(
                         RightCurlyShouldHaveLineBreakBefore {
@@ -564,7 +564,7 @@ impl RightCurly {
                 // Not the last catch
                 match self.option {
                     RightCurlyOption::Same => {
-                        if !are_on_same_line(ctx.source(), &rcurly, &next) {
+                        if !are_on_same_line(ctx, &rcurly, &next) {
                             let mut diagnostic = Diagnostic::new(
                                 RightCurlyShouldBeSameLine {
                                     column: Self::get_column(ctx, &rcurly),
@@ -581,7 +581,7 @@ impl RightCurly {
                         if !Self::should_be_alone(
                             ctx,
                             &rcurly,
-                            self.option == RightCurlyOption::AloneOrSingleline,
+                            self.option == RightCurlyOption::AloneOrSingleline, // Only ALONE_OR_SINGLELINE allows single-line blocks
                             &body,
                         ) {
                             let mut diagnostic = Diagnostic::new(
@@ -636,8 +636,8 @@ impl RightCurly {
 
     /// Check if there's a line break before a node (i.e., only whitespace on line before it).
     fn has_line_break_before(ctx: &CheckContext, node: &CstNode) -> bool {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let node_line = source_code.line_column(node.range().start()).line;
         let line_start = line_index.line_start(node_line, ctx.source());
 
@@ -647,8 +647,8 @@ impl RightCurly {
 
     /// Check if a node is alone on its line (only whitespace before and after it on its line).
     fn is_alone_on_line(ctx: &CheckContext, node: &CstNode) -> bool {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let node_line = source_code.line_column(node.range().start()).line;
         let line_start = line_index.line_start(node_line, ctx.source());
         let line_end = line_index.line_end(node_line, ctx.source());
@@ -668,13 +668,12 @@ impl RightCurly {
 
     /// Get column number (1-indexed) for a node.
     fn get_column(ctx: &CheckContext, node: &CstNode) -> usize {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
-        source_code.line_column(node.range().start()).column.get()
+        ctx.source_code().line_column(node.range().start()).column.get()
     }
 
     /// Check if } should be alone on line.
-    /// For ALONE_OR_SINGLELINE option, allows single-line blocks.
+    /// For ALONE option: } must be alone (single-line blocks NOT allowed).
+    /// For ALONE_OR_SINGLELINE: } must be alone OR block can be single-line.
     fn should_be_alone(
         ctx: &CheckContext,
         rcurly: &CstNode,
@@ -689,7 +688,7 @@ impl RightCurly {
         // For ALONE_OR_SINGLELINE, check if entire block is on one line
         if allow_singleline
             && let Some(lcurly) = Self::find_left_curly(ctx, block)
-            && are_on_same_line(ctx.source(), &lcurly, rcurly)
+            && are_on_same_line(ctx, &lcurly, rcurly)
         {
             return true;
         }
@@ -711,7 +710,7 @@ impl RightCurly {
                 // For SAME option, last block should be alone
                 // BUT single-line blocks are allowed (checkstyle's shouldBeAloneOnLineWithNotAloneOption)
                 let is_single_line = if let Some(lcurly) = Self::find_left_curly(ctx, block) {
-                    are_on_same_line(ctx.source(), &lcurly, rcurly)
+                    are_on_same_line(ctx, &lcurly, rcurly)
                 } else {
                     false
                 };
@@ -724,7 +723,7 @@ impl RightCurly {
                         rcurly.range(),
                     );
                     if let Some(next_token) = Self::get_next_token(block)
-                        && are_on_same_line(ctx.source(), rcurly, &next_token)
+                        && are_on_same_line(ctx, rcurly, &next_token)
                         && let Some(fix) = self.fix_make_alone(ctx, rcurly, &next_token)
                     {
                         diagnostic = diagnostic.with_fix(fix);
@@ -736,7 +735,7 @@ impl RightCurly {
                 if !Self::should_be_alone(
                     ctx,
                     rcurly,
-                    self.option == RightCurlyOption::AloneOrSingleline,
+                    self.option == RightCurlyOption::AloneOrSingleline, // Only ALONE_OR_SINGLELINE allows single-line blocks
                     block,
                 ) {
                     let mut diagnostic = Diagnostic::new(
@@ -746,7 +745,7 @@ impl RightCurly {
                         rcurly.range(),
                     );
                     if let Some(next_token) = Self::get_next_token(block)
-                        && are_on_same_line(ctx.source(), rcurly, &next_token)
+                        && are_on_same_line(ctx, rcurly, &next_token)
                         && let Some(fix) = self.fix_make_alone(ctx, rcurly, &next_token)
                     {
                         diagnostic = diagnostic.with_fix(fix);
@@ -787,7 +786,7 @@ impl RightCurly {
                     // Find next token after this statement/declaration
                     if let Some(next_token) = Self::get_next_token(node) {
                         // If next token is on same line as }, that's a violation
-                        if are_on_same_line(ctx.source(), &rcurly, &next_token) {
+                        if are_on_same_line(ctx, &rcurly, &next_token) {
                             let mut diagnostic = Diagnostic::new(
                                 RightCurlyShouldBeAlone {
                                     column: Self::get_column(ctx, &rcurly),
@@ -805,7 +804,7 @@ impl RightCurly {
                     if !Self::should_be_alone(
                         ctx,
                         &rcurly,
-                        self.option == RightCurlyOption::AloneOrSingleline,
+                        self.option == RightCurlyOption::AloneOrSingleline, // Only ALONE_OR_SINGLELINE allows single-line blocks
                         &block,
                     ) {
                         let mut diagnostic = Diagnostic::new(
@@ -815,7 +814,7 @@ impl RightCurly {
                             rcurly.range(),
                         );
                         if let Some(next_token) = Self::get_next_token(node)
-                            && are_on_same_line(ctx.source(), &rcurly, &next_token)
+                            && are_on_same_line(ctx, &rcurly, &next_token)
                             && let Some(fix) = self.fix_make_alone(ctx, &rcurly, &next_token)
                         {
                             diagnostic = diagnostic.with_fix(fix);

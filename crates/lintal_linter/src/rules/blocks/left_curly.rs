@@ -201,8 +201,8 @@ impl LeftCurly {
     }
 
     fn brace_line_info(ctx: &CheckContext, brace: &CstNode) -> Option<BraceLineInfo> {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let line = source_code.line_column(brace.range().start()).line;
         let line_start = line_index.line_start(line, ctx.source());
         let line_end = line_index.line_end(line, ctx.source());
@@ -228,8 +228,8 @@ impl LeftCurly {
     }
 
     fn line_indent(ctx: &CheckContext, pos: TextSize) -> String {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let line = source_code.line_column(pos).line;
         let line_start = line_index.line_start(line, ctx.source());
         let prefix = &ctx.source()[usize::from(line_start)..usize::from(pos)];
@@ -244,7 +244,7 @@ impl LeftCurly {
         if info.line == lintal_source_file::OneIndexed::MIN {
             return None;
         }
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
+        let line_index = ctx.line_index();
         let prev_line = info.line.saturating_sub(1);
         let prev_line_start = line_index.line_start(prev_line, ctx.source());
         let prev_line_end_exclusive = line_index.line_end_exclusive(prev_line, ctx.source());
@@ -308,17 +308,15 @@ impl LeftCurly {
 
     /// Get column number (1-indexed) for a node.
     fn get_column(ctx: &CheckContext, node: &CstNode) -> usize {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
-        source_code.line_column(node.range().start()).column.get()
+        ctx.source_code().line_column(node.range().start()).column.get()
     }
 
     /// Check if there's only whitespace before a node on its line.
     /// This matches checkstyle's CommonUtil.hasWhitespaceBefore logic:
     /// Returns true if the node is at the start of the line OR if there's only whitespace before it.
     fn has_whitespace_before(ctx: &CheckContext, node: &CstNode) -> bool {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let node_line = source_code.line_column(node.range().start()).line;
         let line_start = line_index.line_start(node_line, ctx.source());
 
@@ -330,8 +328,7 @@ impl LeftCurly {
     /// Check if there's a line break after the left curly.
     /// This follows checkstyle's hasLineBreakAfter logic.
     fn has_line_break_after(&self, ctx: &CheckContext, lcurly: &CstNode) -> bool {
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let source_code = ctx.source_code();
         let lcurly_line = source_code.line_column(lcurly.range().start()).line;
 
         // Get the parent to determine the context
@@ -696,11 +693,9 @@ impl LeftCurly {
             LeftCurlyOption::Nlow => {
                 // NLOW: similar to EOL but more lenient
                 // If not on same line as start, it should be on new line
-                if !are_on_same_line(ctx.source(), start_token, brace) {
+                if !are_on_same_line(ctx, start_token, brace) {
                     // Not on same line - check if it's on next line
-                    let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-                    let source_code =
-                        lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+                    let source_code = ctx.source_code();
                     let start_line = source_code.line_column(start_token.range().start()).line;
                     let brace_line = source_code.line_column(brace.range().start()).line;
 
@@ -744,8 +739,8 @@ impl LeftCurly {
     /// Check if a brace is part of an empty block ('{' followed immediately by '}').
     fn is_empty_block(ctx: &CheckContext, brace: &CstNode) -> bool {
         // Get the line content
-        let line_index = lintal_source_file::LineIndex::from_source_text(ctx.source());
-        let source_code = lintal_source_file::SourceCode::new(ctx.source(), &line_index);
+        let line_index = ctx.line_index();
+        let source_code = ctx.source_code();
         let brace_line = source_code.line_column(brace.range().start()).line;
         let line_start = line_index.line_start(brace_line, ctx.source());
         let line_end = line_index.line_end(brace_line, ctx.source());
