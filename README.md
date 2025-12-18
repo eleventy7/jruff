@@ -15,6 +15,10 @@ The project is focused on safely autofixable cases to begin with, and aims for 1
 - Reads existing checkstyle.xml configurations
 - Auto-fixes many common violations (whitespace, brace placement, imports, modifiers)
 - Fast parallel processing
+- Suppression support:
+  - `@SuppressWarnings("checkstyle:RuleName")` annotations
+  - `SuppressWithPlainTextCommentFilter` (`// CHECKSTYLE:OFF:RuleName` comments)
+  - `SuppressWarningsFilter`
 - Optional TOML overlay for fix-specific settings
 
 ## Installation
