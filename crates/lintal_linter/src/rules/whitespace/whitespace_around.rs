@@ -26,6 +26,12 @@ pub struct WhitespaceAround {
     pub allow_empty_catches: bool,
     /// Ignore whitespace around colon in enhanced for loop
     pub ignore_enhanced_for_colon: bool,
+    /// Check whitespace around `<` in generics (GENERIC_START token)
+    pub check_generic_start: bool,
+    /// Check whitespace around `>` in generics (GENERIC_END token)
+    pub check_generic_end: bool,
+    /// Check whitespace around `?` in generics (WILDCARD_TYPE token)
+    pub check_wildcard_type: bool,
 }
 
 impl Default for WhitespaceAround {
@@ -38,6 +44,10 @@ impl Default for WhitespaceAround {
             allow_empty_lambdas: false,
             allow_empty_catches: false,
             ignore_enhanced_for_colon: true,
+            // Generics tokens are NOT checked by default (matches checkstyle)
+            check_generic_start: false,
+            check_generic_end: false,
+            check_wildcard_type: false,
         }
     }
 }
@@ -46,6 +56,12 @@ impl FromConfig for WhitespaceAround {
     const MODULE_NAME: &'static str = "WhitespaceAround";
 
     fn from_config(properties: &Properties) -> Self {
+        // Check if tokens property includes generics tokens
+        let tokens = properties.get("tokens").copied().unwrap_or("");
+        let check_generic_start = tokens.contains("GENERIC_START");
+        let check_generic_end = tokens.contains("GENERIC_END");
+        let check_wildcard_type = tokens.contains("WILDCARD_TYPE");
+
         Self {
             allow_empty_constructors: properties
                 .get("allowEmptyConstructors")
@@ -75,6 +91,9 @@ impl FromConfig for WhitespaceAround {
                 .get("ignoreEnhancedForColon")
                 .map(|v| *v == "true")
                 .unwrap_or(true),
+            check_generic_start,
+            check_generic_end,
+            check_wildcard_type,
         }
     }
 }
@@ -236,6 +255,56 @@ impl Rule for WhitespaceAround {
             // Lambda expression
             "lambda_expression" => {
                 diagnostics.extend(self.check_lambda(ctx, node));
+            }
+
+            // Spread parameter (varargs): String... args
+            "spread_parameter" => {
+                if let Some(ellipsis) = find_child_by_kind(node, "...") {
+                    diagnostics.extend(check_whitespace_around(ctx, &ellipsis));
+                }
+            }
+
+            // Type bounds with & (e.g., T extends A & B)
+            "type_bound" => {
+                for child in node.children() {
+                    if child.kind() == "&" {
+                        diagnostics.extend(check_whitespace_around(ctx, &child));
+                    }
+                }
+            }
+
+            // Guard clause with 'when' keyword (Java 21 pattern matching)
+            // e.g., case Integer i when (i > 0) -> {}
+            "guard" => {
+                if let Some(when_kw) = find_keyword(node, "when") {
+                    diagnostics.extend(check_whitespace_around(ctx, &when_kw));
+                }
+            }
+
+            // Generic type arguments: List<String>, Map<K, V>
+            // Only checked when check_generic_start/check_generic_end are enabled
+            "type_arguments" => {
+                for child in node.children() {
+                    match child.kind() {
+                        "<" if self.check_generic_start => {
+                            diagnostics.extend(check_whitespace_around(ctx, &child));
+                        }
+                        ">" if self.check_generic_end => {
+                            diagnostics.extend(check_whitespace_around(ctx, &child));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            // Wildcard type: <?>, <? extends T>, <? super T>
+            // Only checked when check_wildcard_type is enabled
+            "wildcard" => {
+                if self.check_wildcard_type
+                    && let Some(question) = find_child_by_kind(node, "?")
+                {
+                    diagnostics.extend(check_whitespace_around(ctx, &question));
+                }
             }
 
             _ => {}
@@ -453,7 +522,8 @@ fn check_brace_whitespace(ctx: &CheckContext, brace: &CstNode, is_empty: bool) -
     if !is_empty {
         diagnostics.extend(check_whitespace_after(ctx, brace));
     } else {
-        // For empty blocks, { must be followed by whitespace or }
+        // For empty blocks, { must be followed by whitespace
+        // (allowEmpty* already handled by early return in check_block)
         let after_pos = brace.range().end();
         let char_after = ctx
             .source()
@@ -462,7 +532,6 @@ fn check_brace_whitespace(ctx: &CheckContext, brace: &CstNode, is_empty: bool) -
 
         if let Some(c) = char_after.chars().next()
             && !c.is_whitespace()
-            && c != '}'
         {
             diagnostics.push(
                 Diagnostic::new(
@@ -492,7 +561,8 @@ fn check_closing_brace_whitespace(
     if !is_empty {
         diagnostics.extend(check_whitespace_before(ctx, brace));
     } else {
-        // For empty blocks, } must be preceded by whitespace or {
+        // For empty blocks, } must be preceded by whitespace
+        // (allowEmpty* already handled by early return in check_block)
         let before_pos = brace.range().start();
         if before_pos > TextSize::new(0) {
             let char_before = ctx
@@ -502,7 +572,6 @@ fn check_closing_brace_whitespace(
 
             if let Some(c) = char_before.chars().next()
                 && !c.is_whitespace()
-                && c != '{'
             {
                 diagnostics.push(
                     Diagnostic::new(
