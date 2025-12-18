@@ -47,7 +47,7 @@ impl Violation {
 }
 
 /// Run RightCurly rule with custom config on source and collect violations.
-fn check_right_curly(source: &str, option: &str) -> Vec<Violation> {
+fn check_right_curly(source: &str, option: &str, tokens: Option<&str>) -> Vec<Violation> {
     let mut parser = JavaParser::new();
     let Some(result) = parser.parse(source) else {
         panic!("Failed to parse source");
@@ -55,6 +55,9 @@ fn check_right_curly(source: &str, option: &str) -> Vec<Violation> {
 
     let mut properties = HashMap::new();
     properties.insert("option", option);
+    if let Some(tokens) = tokens {
+        properties.insert("tokens", tokens);
+    }
 
     let rule = RightCurly::from_config(&properties);
     let ctx = CheckContext::new(source);
@@ -107,9 +110,9 @@ fn verify_violations(violations: &[Violation], expected: &[Violation]) {
     let mut unexpected = vec![];
 
     for exp in expected {
-        let matched = violations
-            .iter()
-            .any(|v| v.line == exp.line && v.column == exp.column && v.message_key == exp.message_key);
+        let matched = violations.iter().any(|v| {
+            v.line == exp.line && v.column == exp.column && v.message_key == exp.message_key
+        });
 
         if !matched {
             missing.push(exp.clone());
@@ -117,9 +120,11 @@ fn verify_violations(violations: &[Violation], expected: &[Violation]) {
     }
 
     for actual in violations {
-        let matched = expected
-            .iter()
-            .any(|v| v.line == actual.line && v.column == actual.column && v.message_key == actual.message_key);
+        let matched = expected.iter().any(|v| {
+            v.line == actual.line
+                && v.column == actual.column
+                && v.message_key == actual.message_key
+        });
 
         if !matched {
             unexpected.push(actual.clone());
@@ -162,7 +167,8 @@ fn test_right_curly_default() {
         return;
     };
 
-    let violations = check_right_curly(&source, "same");
+    // Uses default tokens: LITERAL_TRY, LITERAL_CATCH, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE
+    let violations = check_right_curly(&source, "same", None);
 
     let expected = vec![
         Violation::line_same(25, 17),
@@ -196,7 +202,9 @@ fn test_right_curly_same() {
         return;
     };
 
-    let violations = check_right_curly(&source, "same");
+    // From inline config: tokens = LITERAL_TRY, LITERAL_CATCH, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_FOR, LITERAL_WHILE, LITERAL_DO, ANNOTATION_DEF, ENUM_DEF
+    let tokens = "LITERAL_TRY, LITERAL_CATCH, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_FOR, LITERAL_WHILE, LITERAL_DO, ANNOTATION_DEF, ENUM_DEF";
+    let violations = check_right_curly(&source, "same", Some(tokens));
 
     let expected = vec![
         Violation::line_same(26, 17),
@@ -226,7 +234,8 @@ fn test_right_curly_catch_without_finally() {
         return;
     };
 
-    let violations = check_right_curly(&source, "same");
+    // Uses default tokens
+    let violations = check_right_curly(&source, "same", None);
 
     let expected = vec![Violation::line_same(19, 9)];
 

@@ -17,7 +17,9 @@ pub fn are_on_same_line(source: &str, a: &CstNode, b: &CstNode) -> bool {
 pub fn is_alone_on_line(source: &str, node: &CstNode) -> bool {
     let line_index = LineIndex::from_source_text(source);
     let line_start = line_index.line_start(
-        SourceCode::new(source, &line_index).line_column(node.range().start()).line,
+        SourceCode::new(source, &line_index)
+            .line_column(node.range().start())
+            .line,
         source,
     );
     let before = &source[usize::from(line_start)..usize::from(node.range().start())];
@@ -27,7 +29,11 @@ pub fn is_alone_on_line(source: &str, node: &CstNode) -> bool {
 /// Check if there's a line break before a position.
 pub fn has_line_break_before(source: &str, pos: TextSize) -> bool {
     let before = &source[..usize::from(pos)];
-    before.chars().rev().take_while(|c| *c != '\n').all(|c| c.is_whitespace())
+    before
+        .chars()
+        .rev()
+        .take_while(|c| *c != '\n')
+        .all(|c| c.is_whitespace())
         && before.contains('\n')
 }
 
