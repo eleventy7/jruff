@@ -26,18 +26,10 @@ impl Violation for SingleSpaceSeparatorViolation {
 }
 
 /// Configuration for SingleSpaceSeparator rule.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SingleSpaceSeparator {
     /// Control whether to validate whitespaces surrounding comments.
     pub validate_comments: bool,
-}
-
-impl Default for SingleSpaceSeparator {
-    fn default() -> Self {
-        Self {
-            validate_comments: false,
-        }
-    }
 }
 
 impl FromConfig for SingleSpaceSeparator {
@@ -202,44 +194,6 @@ fn check_token_whitespace(
     vec![diagnostic]
 }
 
-/// Check if the text at column_no is separated correctly from the previous token.
-/// Returns true if OK, false if it's a violation.
-fn is_text_separated_correctly(chars: &[char], column_no: usize, validate_comments: bool) -> bool {
-    // Check 1: Is it a single space (preceded by non-space)?
-    if is_single_space(chars, column_no) {
-        return true;
-    }
-
-    // Check 2: Is the character at column_no not whitespace at all?
-    if !chars[column_no].is_whitespace() {
-        return true;
-    }
-
-    // Check 3: Is this the first character (all whitespace before)?
-    if is_first_in_line(chars, column_no) {
-        return true;
-    }
-
-    // Check 4: If validateComments is false and we're after block comment end
-    if !validate_comments && is_block_comment_end(chars, column_no) {
-        return true;
-    }
-
-    // Otherwise, it's a violation
-    false
-}
-
-/// Check if chars[column_no] is a single space (not preceded by another space).
-fn is_single_space(chars: &[char], column_no: usize) -> bool {
-    if chars[column_no] != ' ' {
-        return false;
-    }
-    if column_no == 0 {
-        return true;
-    }
-    !chars[column_no - 1].is_whitespace()
-}
-
 /// Check if the position is the first non-whitespace on the line.
 /// All characters before `column_no` must be whitespace.
 fn is_first_in_line(chars: &[char], column_no: usize) -> bool {
@@ -282,14 +236,5 @@ mod tests {
 
         let chars2: Vec<char> = "foo  bar".chars().collect();
         assert!(!is_block_comment_end(&chars2, 5)); // No "*/"
-    }
-
-    #[test]
-    fn test_is_single_space() {
-        let chars: Vec<char> = "a b".chars().collect();
-        assert!(is_single_space(&chars, 1)); // Single space at index 1
-
-        let chars2: Vec<char> = "a  b".chars().collect();
-        assert!(!is_single_space(&chars2, 2)); // Second space is not single
     }
 }

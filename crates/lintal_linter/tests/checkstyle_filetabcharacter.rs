@@ -16,6 +16,7 @@ struct Violation {
 }
 
 impl Violation {
+    #[allow(dead_code)]
     fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
@@ -95,6 +96,7 @@ fn load_fixture(file_name: &str) -> Option<String> {
 
 /// Extract line and column info from violation comments in source.
 /// Format: "// violation 'message'" or just "// violation"
+#[allow(dead_code)]
 fn extract_violation_locations(source: &str) -> Vec<Violation> {
     let mut violations = vec![];
     for (line_no, line) in source.lines().enumerate() {

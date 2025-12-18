@@ -145,7 +145,7 @@ fn test_typecast_paren_pad_whitespace_nospace() {
 
     // Based on comments in the file, expected violations:
     // Line 86: o = ( Object ) o; - both lparen and rparen (2 violations comment)
-    let expected = vec![
+    let expected = [
         Violation::followed(86, 12), // ( Object
         Violation::preceded(86, 21), // Object )
     ];

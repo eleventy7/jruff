@@ -119,10 +119,10 @@ impl Rule for NoWhitespaceBefore {
             // Semicolon: statement;
             ";" if self.tokens.contains(&NoWhitespaceBeforeToken::Semi) => {
                 // Skip semicolons in empty for loop initializers or conditions
-                if !is_in_empty_for_initializer_or_condition(node) {
-                    if let Some(ws_range) = self.check_whitespace_before(ctx, node) {
-                        diagnostics.push(diag_preceded(node, ws_range));
-                    }
+                if !is_in_empty_for_initializer_or_condition(node)
+                    && let Some(ws_range) = self.check_whitespace_before(ctx, node)
+                {
+                    diagnostics.push(diag_preceded(node, ws_range));
                 }
             }
 
@@ -214,10 +214,10 @@ impl NoWhitespaceBefore {
 
         // Check directly before the ellipsis in source text
         // This is similar to how checkstyle checks: it looks at the source line/column
-        if let Some(ws_range) = whitespace_range_before(source, ellipsis_pos) {
-            if self.should_report_whitespace(source, ws_range) {
-                return Some(ws_range);
-            }
+        if let Some(ws_range) = whitespace_range_before(source, ellipsis_pos)
+            && self.should_report_whitespace(source, ws_range)
+        {
+            return Some(ws_range);
         }
 
         None
@@ -234,10 +234,10 @@ impl NoWhitespaceBefore {
         let source = ctx.source();
 
         // Check for whitespace before the token
-        if let Some(ws_range) = whitespace_range_before(source, before_pos) {
-            if self.should_report_whitespace(source, ws_range) {
-                return Some(ws_range);
-            }
+        if let Some(ws_range) = whitespace_range_before(source, before_pos)
+            && self.should_report_whitespace(source, ws_range)
+        {
+            return Some(ws_range);
         }
         None
     }

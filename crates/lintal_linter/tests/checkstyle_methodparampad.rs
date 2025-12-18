@@ -18,6 +18,7 @@ struct Violation {
 }
 
 impl Violation {
+    #[allow(dead_code)]
     fn ws_preceded(line: usize, column: usize) -> Self {
         Self {
             line,
@@ -26,6 +27,7 @@ impl Violation {
         }
     }
 
+    #[allow(dead_code)]
     fn ws_not_preceded(line: usize, column: usize) -> Self {
         Self {
             line,
@@ -34,6 +36,7 @@ impl Violation {
         }
     }
 
+    #[allow(dead_code)]
     fn line_previous(line: usize, column: usize) -> Self {
         Self {
             line,

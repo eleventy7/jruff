@@ -229,7 +229,7 @@ fn test_paren_pad_whitespace_nospace() {
     // Line 84-86: if ( true ) - both lparen and rparen
     // Line 254: (int) ( 2 / 3 ) - expr parens
     // Line 293: register( args ) - method call
-    let expected = vec![
+    let expected = [
         Violation::followed(65, 11),  // if(
         Violation::preceded(65, 36),  // )
         Violation::followed(84, 12),  // if (

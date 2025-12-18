@@ -16,6 +16,7 @@ struct Violation {
 }
 
 impl Violation {
+    #[allow(dead_code)]
     fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
@@ -97,10 +98,10 @@ fn count_violation_comments(source: &str) -> usize {
                 count += 1;
             } else if comment.ends_with("violations") {
                 // Parse "2 violations" -> 2
-                if let Some(num_str) = comment.split_whitespace().next() {
-                    if let Ok(num) = num_str.parse::<usize>() {
-                        count += num;
-                    }
+                if let Some(num_str) = comment.split_whitespace().next()
+                    && let Ok(num) = num_str.parse::<usize>()
+                {
+                    count += num;
                 }
             }
         }
@@ -109,6 +110,7 @@ fn count_violation_comments(source: &str) -> usize {
 }
 
 /// Extract line numbers with violations from comments.
+#[allow(dead_code)]
 fn extract_violation_lines(source: &str) -> Vec<usize> {
     let mut lines = vec![];
     for (line_num, line) in source.lines().enumerate() {

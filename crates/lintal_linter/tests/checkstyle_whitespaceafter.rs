@@ -18,6 +18,7 @@ struct Violation {
 }
 
 impl Violation {
+    #[allow(dead_code)]
     fn not_followed(line: usize, column: usize, token: &str) -> Self {
         Self {
             line,
@@ -158,6 +159,7 @@ fn extract_expected_violations(source: &str) -> Vec<(usize, String)> {
 }
 
 /// Helper to verify violations match expected.
+#[allow(dead_code)]
 fn verify_violations(violations: &[Violation], expected_lines: &[usize], token: &str) -> bool {
     for line in expected_lines {
         if !violations
@@ -179,6 +181,7 @@ fn print_violations(label: &str, violations: &[Violation]) {
 }
 
 /// Group violations by line for analysis.
+#[allow(dead_code)]
 fn violations_by_line(violations: &[Violation]) -> HashMap<usize, Vec<&Violation>> {
     let mut by_line: HashMap<usize, Vec<&Violation>> = HashMap::new();
     for v in violations {
