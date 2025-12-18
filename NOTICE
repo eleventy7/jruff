@@ -1,12 +1,12 @@
-jruff - A fast Java linter with auto-fix support
+lintal - A fast Java linter with auto-fix support
 
 This project is a fork of Ruff (https://github.com/astral-sh/ruff),
 an extremely fast Python linter and code formatter, written in Rust.
 
 The following components are derived from Ruff:
-- crates/jruff_text_size - Text size and range utilities
-- crates/jruff_source_file - Source file handling and line indexing
-- crates/jruff_diagnostics - Diagnostic and fix infrastructure
+- crates/lintal_text_size - Text size and range utilities
+- crates/lintal_source_file - Source file handling and line indexing
+- crates/lintal_diagnostics - Diagnostic and fix infrastructure
 
 Original Ruff authors and contributors:
 - Charlie Marsh <charlie.r.marsh@gmail.com>

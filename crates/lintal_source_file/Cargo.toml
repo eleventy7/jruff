@@ -1,0 +1,24 @@
+[package]
+name = "lintal_source_file"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+
+[dependencies]
+lintal_text_size = { path = "../lintal_text_size" }
+get-size2 = { version = "0.7", features = ["derive"], optional = true }
+memchr = "2.7"
+serde = { version = "1.0", optional = true }
+
+[dev-dependencies]
+
+[features]
+get-size = ["dep:get-size2", "lintal_text_size/get-size"]
+serde = ["dep:serde", "lintal_text_size/serde"]
+
+[lints]
+workspace = true
