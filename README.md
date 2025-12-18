@@ -1,10 +1,10 @@
-# jruff
+# lintal
 
 A fast Java linter with auto-fix support, built in Rust.
 
-jruff reads checkstyle.xml configuration files and can automatically fix many violations that checkstyle can only detect.
+lintal reads checkstyle.xml configuration files and can automatically fix many violations that checkstyle can only detect.
 
-> **Attribution**: jruff is built on infrastructure from [Ruff](https://github.com/astral-sh/ruff), the extremely fast Python linter by [Astral](https://astral.sh/). We're grateful to the Ruff team for their excellent work that made this project possible.
+> **Attribution**: lintal is built on infrastructure from [Ruff](https://github.com/astral-sh/ruff), the extremely fast Python linter by [Astral](https://astral.sh/). We're grateful to the Ruff team for their excellent work that made this project possible.
 
 ## Features
 
@@ -16,23 +16,23 @@ jruff reads checkstyle.xml configuration files and can automatically fix many vi
 ## Installation
 
 ```bash
-cargo install --path crates/jruff
+cargo install --path crates/lintal
 ```
 
 ## Usage
 
 ```bash
 # Check files for violations
-jruff check src/
+lintal check src/
 
 # Fix violations
-jruff fix src/
+lintal fix src/
 
 # Use specific checkstyle config
-jruff check src/ --config path/to/checkstyle.xml
+lintal check src/ --config path/to/checkstyle.xml
 
 # Show fixes without applying
-jruff fix src/ --diff
+lintal fix src/ --diff
 ```
 
 ## Supported Rules

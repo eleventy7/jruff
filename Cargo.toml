@@ -6,19 +6,19 @@ resolver = "2"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-repository = "https://github.com/eleventy7/jruff"
+repository = "https://github.com/eleventy7/lintal"
 authors = ["eleventy7"]
 
 [workspace.dependencies]
 # Internal crates
-jruff = { path = "crates/jruff" }
-jruff_java_parser = { path = "crates/jruff_java_parser" }
-jruff_java_cst = { path = "crates/jruff_java_cst" }
-jruff_checkstyle = { path = "crates/jruff_checkstyle" }
-jruff_linter = { path = "crates/jruff_linter" }
-jruff_diagnostics = { path = "crates/jruff_diagnostics" }
-jruff_text_size = { path = "crates/jruff_text_size" }
-jruff_source_file = { path = "crates/jruff_source_file" }
+lintal = { path = "crates/lintal" }
+lintal_java_parser = { path = "crates/lintal_java_parser" }
+lintal_java_cst = { path = "crates/lintal_java_cst" }
+lintal_checkstyle = { path = "crates/lintal_checkstyle" }
+lintal_linter = { path = "crates/lintal_linter" }
+lintal_diagnostics = { path = "crates/lintal_diagnostics" }
+lintal_text_size = { path = "crates/lintal_text_size" }
+lintal_source_file = { path = "crates/lintal_source_file" }
 
 # External dependencies
 tree-sitter = "0.24"

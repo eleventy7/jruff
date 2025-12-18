@@ -1,0 +1,19 @@
+[package]
+name = "lintal_linter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+
+[lib]
+doctest = false
+
+[dependencies]
+lintal_java_parser = { path = "../lintal_java_parser" }
+lintal_java_cst = { path = "../lintal_java_cst" }
+lintal_checkstyle = { path = "../lintal_checkstyle" }
+lintal_diagnostics = { path = "../lintal_diagnostics" }
+lintal_text_size = { path = "../lintal_text_size" }
+lintal_source_file = { path = "../lintal_source_file" }
+
+[dev-dependencies]
