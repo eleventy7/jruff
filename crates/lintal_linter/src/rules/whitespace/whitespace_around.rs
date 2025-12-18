@@ -173,10 +173,10 @@ impl Rule for WhitespaceAround {
                     diagnostics.extend(check_whitespace_after(ctx, &kw));
                 }
                 // Check colon in enhanced for, unless ignored
-                if !self.ignore_enhanced_for_colon {
-                    if let Some(colon) = find_child_by_kind(node, ":") {
-                        diagnostics.extend(check_whitespace_around(ctx, &colon));
-                    }
+                if !self.ignore_enhanced_for_colon
+                    && let Some(colon) = find_child_by_kind(node, ":")
+                {
+                    diagnostics.extend(check_whitespace_around(ctx, &colon));
                 }
             }
             "switch_expression" | "switch_statement" => {
@@ -263,14 +263,10 @@ impl WhitespaceAround {
     fn check_return(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
         // return; - no check needed
         // return expr; - check whitespace after 'return'
-        let has_expression = node.children().any(|c| {
-            !matches!(c.kind(), "return" | ";")
-        });
+        let has_expression = node.children().any(|c| !matches!(c.kind(), "return" | ";"));
 
-        if has_expression {
-            if let Some(kw) = find_keyword(node, "return") {
-                return check_whitespace_after(ctx, &kw);
-            }
+        if has_expression && let Some(kw) = find_keyword(node, "return") {
+            return check_whitespace_after(ctx, &kw);
         }
 
         vec![]
@@ -364,18 +360,19 @@ impl WhitespaceAround {
         }
 
         // Check block body if present
-        if let Some(body) = node.child_by_field_name("body") {
-            if body.kind() == "block" {
-                let is_empty = is_empty_block(&body);
+        if let Some(body) = node.child_by_field_name("body")
+            && body.kind() == "block"
+        {
+            let is_empty = is_empty_block(&body);
 
-                if !(is_empty && self.allow_empty_lambdas) {
-                    if let Some(open) = find_child_by_kind(&body, "{") {
-                        diagnostics.extend(check_brace_whitespace(ctx, &open, is_empty));
-                    }
+            if !(is_empty && self.allow_empty_lambdas) {
+                if let Some(open) = find_child_by_kind(&body, "{") {
+                    diagnostics.extend(check_brace_whitespace(ctx, &open, is_empty));
+                }
 
-                    if let Some(close) = find_child_by_kind(&body, "}") {
-                        diagnostics.extend(check_closing_brace_whitespace(ctx, &close, is_empty, &body));
-                    }
+                if let Some(close) = find_child_by_kind(&body, "}") {
+                    diagnostics
+                        .extend(check_closing_brace_whitespace(ctx, &close, is_empty, &body));
                 }
             }
         }
@@ -403,14 +400,16 @@ fn check_whitespace_before(ctx: &CheckContext, token: &CstNode) -> Vec<Diagnosti
             .source()
             .get(usize::from(before_pos) - 1..usize::from(before_pos))
             .unwrap_or("");
-        if !char_before.chars().next().map_or(false, |c| c.is_whitespace()) {
-            return vec![Diagnostic::new(
-                MissingWhitespaceBefore {
-                    token: text.to_string(),
-                },
-                range,
-            )
-            .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), before_pos)))];
+        if !char_before.chars().next().is_some_and(char::is_whitespace) {
+            return vec![
+                Diagnostic::new(
+                    MissingWhitespaceBefore {
+                        token: text.to_string(),
+                    },
+                    range,
+                )
+                .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), before_pos))),
+            ];
         }
     }
 
@@ -428,14 +427,16 @@ fn check_whitespace_after(ctx: &CheckContext, token: &CstNode) -> Vec<Diagnostic
         .get(usize::from(after_pos)..usize::from(after_pos) + 1)
         .unwrap_or("");
 
-    if !char_after.chars().next().map_or(false, |c| c.is_whitespace()) {
-        return vec![Diagnostic::new(
-            MissingWhitespaceAfter {
-                token: text.to_string(),
-            },
-            range,
-        )
-        .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), after_pos)))];
+    if !char_after.chars().next().is_some_and(char::is_whitespace) {
+        return vec![
+            Diagnostic::new(
+                MissingWhitespaceAfter {
+                    token: text.to_string(),
+                },
+                range,
+            )
+            .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), after_pos))),
+        ];
     }
 
     vec![]
@@ -459,18 +460,19 @@ fn check_brace_whitespace(ctx: &CheckContext, brace: &CstNode, is_empty: bool) -
             .get(usize::from(after_pos)..usize::from(after_pos) + 1)
             .unwrap_or("");
 
-        if let Some(c) = char_after.chars().next() {
-            if !c.is_whitespace() && c != '}' {
-                diagnostics.push(
-                    Diagnostic::new(
-                        MissingWhitespaceAfter {
-                            token: "{".to_string(),
-                        },
-                        brace.range(),
-                    )
-                    .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), after_pos))),
-                );
-            }
+        if let Some(c) = char_after.chars().next()
+            && !c.is_whitespace()
+            && c != '}'
+        {
+            diagnostics.push(
+                Diagnostic::new(
+                    MissingWhitespaceAfter {
+                        token: "{".to_string(),
+                    },
+                    brace.range(),
+                )
+                .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), after_pos))),
+            );
         }
     }
 
@@ -498,18 +500,19 @@ fn check_closing_brace_whitespace(
                 .get(usize::from(before_pos) - 1..usize::from(before_pos))
                 .unwrap_or("");
 
-            if let Some(c) = char_before.chars().next() {
-                if !c.is_whitespace() && c != '{' {
-                    diagnostics.push(
-                        Diagnostic::new(
-                            MissingWhitespaceBefore {
-                                token: "}".to_string(),
-                            },
-                            brace.range(),
-                        )
-                        .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), before_pos))),
-                    );
-                }
+            if let Some(c) = char_before.chars().next()
+                && !c.is_whitespace()
+                && c != '{'
+            {
+                diagnostics.push(
+                    Diagnostic::new(
+                        MissingWhitespaceBefore {
+                            token: "}".to_string(),
+                        },
+                        brace.range(),
+                    )
+                    .with_fix(Fix::safe_edit(Edit::insertion(" ".to_string(), before_pos))),
+                );
             }
         }
     }
@@ -658,7 +661,11 @@ mod tests {
     #[test]
     fn test_synchronized_keyword() {
         let diagnostics = check_source("class Foo { void m() { synchronized(this) {} } }");
-        assert!(diagnostics.iter().any(|d| d.kind.body.contains("synchronized")));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.kind.body.contains("synchronized"))
+        );
     }
 
     #[test]

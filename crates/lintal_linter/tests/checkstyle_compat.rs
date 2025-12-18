@@ -84,10 +84,10 @@ fn check_whitespace_around(source: &str) -> Vec<Violation> {
 
 /// Extract token from message like "Missing whitespace before `+`"
 fn extract_token(message: &str) -> String {
-    if let Some(start) = message.find('`') {
-        if let Some(end) = message[start + 1..].find('`') {
-            return message[start + 1..start + 1 + end].to_string();
-        }
+    if let Some(start) = message.find('`')
+        && let Some(end) = message[start + 1..].find('`')
+    {
+        return message[start + 1..start + 1 + end].to_string();
     }
     message.to_string()
 }
@@ -117,7 +117,9 @@ fn load_checkstyle_fixture(check_name: &str, file_name: &str) -> Option<String> 
 
 #[test]
 fn test_whitespace_around_simple() {
-    let Some(source) = load_checkstyle_fixture("whitespacearound", "InputWhitespaceAroundSimple.java") else {
+    let Some(source) =
+        load_checkstyle_fixture("whitespacearound", "InputWhitespaceAroundSimple.java")
+    else {
         eprintln!("Skipping test: checkstyle repo not available (run tests with network access)");
         return;
     };
@@ -137,9 +139,10 @@ fn test_whitespace_around_simple() {
     // Check each expected line has a violation
     let mut missing_lines = vec![];
     for line in &expected_lines {
-        if !violations.iter().any(|v| {
-            v.line == *line && v.message_key == "ws.notFollowed" && v.token == "="
-        }) {
+        if !violations
+            .iter()
+            .any(|v| v.line == *line && v.message_key == "ws.notFollowed" && v.token == "=")
+        {
             missing_lines.push(*line);
         }
     }
@@ -204,7 +207,10 @@ fn test_whitespace_around_simple() {
 
 #[test]
 fn test_whitespace_around_keywords_and_operators() {
-    let Some(source) = load_checkstyle_fixture("whitespacearound", "InputWhitespaceAroundKeywordsAndOperators.java") else {
+    let Some(source) = load_checkstyle_fixture(
+        "whitespacearound",
+        "InputWhitespaceAroundKeywordsAndOperators.java",
+    ) else {
         eprintln!("Skipping test: checkstyle repo not available (run tests with network access)");
         return;
     };
@@ -267,7 +273,11 @@ fn test_whitespace_around_keywords_and_operators() {
         }
     }
 
-    println!("\nFound {}/{} expected operator violations", found, expected_operators.len());
+    println!(
+        "\nFound {}/{} expected operator violations",
+        found,
+        expected_operators.len()
+    );
     if !missing.is_empty() {
         println!("Missing:");
         for v in &missing {
@@ -302,16 +312,21 @@ fn test_whitespace_around_keywords_and_operators() {
     let mut keyword_found = 0;
     let mut keyword_missing = vec![];
     for exp in &expected_keywords {
-        if violations.iter().any(|v| {
-            v.line == exp.line && v.message_key == exp.message_key && v.token == exp.token
-        }) {
+        if violations
+            .iter()
+            .any(|v| v.line == exp.line && v.message_key == exp.message_key && v.token == exp.token)
+        {
             keyword_found += 1;
         } else {
             keyword_missing.push(exp.clone());
         }
     }
 
-    println!("\nFound {}/{} expected keyword violations", keyword_found, expected_keywords.len());
+    println!(
+        "\nFound {}/{} expected keyword violations",
+        keyword_found,
+        expected_keywords.len()
+    );
     if !keyword_missing.is_empty() {
         println!("Missing keywords:");
         for v in &keyword_missing {
@@ -332,14 +347,19 @@ fn test_whitespace_around_keywords_and_operators() {
 
     let mut brace_found = 0;
     for exp in &expected_braces {
-        if violations.iter().any(|v| {
-            v.line == exp.line && v.message_key == exp.message_key && v.token == exp.token
-        }) {
+        if violations
+            .iter()
+            .any(|v| v.line == exp.line && v.message_key == exp.message_key && v.token == exp.token)
+        {
             brace_found += 1;
         }
     }
 
-    println!("\nFound {}/{} expected brace violations", brace_found, expected_braces.len());
+    println!(
+        "\nFound {}/{} expected brace violations",
+        brace_found,
+        expected_braces.len()
+    );
 
     // Ternary violations
     let expected_ternary = vec![
@@ -356,19 +376,30 @@ fn test_whitespace_around_keywords_and_operators() {
 
     let mut ternary_found = 0;
     for exp in &expected_ternary {
-        if violations.iter().any(|v| {
-            v.line == exp.line && v.message_key == exp.message_key && v.token == exp.token
-        }) {
+        if violations
+            .iter()
+            .any(|v| v.line == exp.line && v.message_key == exp.message_key && v.token == exp.token)
+        {
             ternary_found += 1;
         }
     }
 
-    println!("\nFound {}/{} expected ternary violations", ternary_found, expected_ternary.len());
+    println!(
+        "\nFound {}/{} expected ternary violations",
+        ternary_found,
+        expected_ternary.len()
+    );
 
     // Summary
-    let total_expected = expected_operators.len() + expected_keywords.len() + expected_braces.len() + expected_ternary.len();
+    let total_expected = expected_operators.len()
+        + expected_keywords.len()
+        + expected_braces.len()
+        + expected_ternary.len();
     let total_found = found + keyword_found + brace_found + ternary_found;
-    println!("\n=== TOTAL: Found {}/{} expected violations ===", total_found, total_expected);
+    println!(
+        "\n=== TOTAL: Found {}/{} expected violations ===",
+        total_found, total_expected
+    );
 }
 
 // =============================================================================
@@ -386,7 +417,11 @@ fn test_binary_plus_without_spaces() {
     }
 
     // Should have 2 violations: not preceded and not followed
-    assert!(violations.len() >= 2, "Expected at least 2 violations, got {}", violations.len());
+    assert!(
+        violations.len() >= 2,
+        "Expected at least 2 violations, got {}",
+        violations.len()
+    );
 }
 
 #[test]
@@ -401,7 +436,11 @@ fn test_binary_plus_with_spaces() {
 
     // Should have no violations for the + operator
     let plus_violations: Vec<_> = violations.iter().filter(|v| v.token == "+").collect();
-    assert!(plus_violations.is_empty(), "Expected no + violations, got {:?}", plus_violations);
+    assert!(
+        plus_violations.is_empty(),
+        "Expected no + violations, got {:?}",
+        plus_violations
+    );
 }
 
 #[test]
