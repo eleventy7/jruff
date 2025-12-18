@@ -4,5 +4,5 @@ pub mod blocks;
 pub mod whitespace;
 
 // Re-export all rules
-pub use blocks::{LeftCurly, RightCurly};
+pub use blocks::{LeftCurly, NeedBraces, RightCurly};
 pub use whitespace::*;
