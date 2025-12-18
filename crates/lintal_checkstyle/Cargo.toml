@@ -2,7 +2,7 @@
 name = "lintal_checkstyle"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.92"
 license = "MIT"
 
 [lib]
@@ -12,5 +12,6 @@ doctest = false
 quick-xml = { version = "0.37", features = ["serialize"] }
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0"
+toml = "0.8"
 
 [dev-dependencies]

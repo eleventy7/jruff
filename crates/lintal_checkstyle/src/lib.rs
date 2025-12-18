@@ -1,4 +1,17 @@
-//! Parser for checkstyle.xml configuration files.
+//! Configuration parsers for lintal.
+//!
+//! This crate provides parsers for:
+//! - checkstyle.xml (the source of truth for rules)
+//! - lintal.toml (optional overlay for fix behavior)
+//!
+//! The [MergedConfig] combines both sources, with checkstyle.xml defining
+//! *what* rules run and lintal.toml defining *how* violations are handled.
+
+mod lintal_config;
+mod merged_config;
+
+pub use lintal_config::{FixConfig, LintalConfig, LintalConfigError, RuleMode};
+pub use merged_config::{ConfigError, ConfigLoader, ConfiguredRule, MergedConfig};
 
 use quick_xml::de::from_str;
 use serde::Deserialize;

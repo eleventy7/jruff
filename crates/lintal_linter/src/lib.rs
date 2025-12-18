@@ -1,6 +1,9 @@
 //! Java linter with auto-fix support.
 
+pub mod registry;
 pub mod rules;
+
+pub use registry::{FromConfig, Properties, RuleRegistry};
 
 use lintal_diagnostics::Diagnostic;
 use lintal_java_cst::CstNode;
