@@ -411,9 +411,7 @@ fn test_whitespace_after_literal_else() {
 
     // Expected: 'else' on line 34
     assert!(
-        violations
-            .iter()
-            .any(|v| v.line == 34 && v.token == "else"),
+        violations.iter().any(|v| v.line == 34 && v.token == "else"),
         "Missing 'else' violation on line 34"
     );
 
