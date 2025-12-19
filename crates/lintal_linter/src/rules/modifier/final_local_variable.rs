@@ -202,6 +202,9 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             "enhanced_for_statement" => {
                 self.process_enhanced_for_loop(node);
             }
+            "lambda_expression" => {
+                self.process_lambda_expression(node);
+            }
             _ => {
                 self.visit_children(node);
             }
@@ -485,8 +488,15 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             }
         }
 
+        // Push a new scope for variables declared inside the loop body
+        // (enhanced for loop creates a new scope for the loop variable and body variables)
+        self.push_scope();
+
         // Visit all children
         self.visit_children(node);
+
+        // Pop the scope (this will report violations for variables declared in the loop body)
+        self.pop_scope();
 
         // After visiting the loop, mark any variable declared before the loop
         // but assigned inside the loop as already_assigned (cannot be final)
@@ -761,6 +771,32 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             }
         }
     }
+
+    /// Process a lambda expression - creates a new scope.
+    /// Lambda parameters should NOT be checked (they're not local variables).
+    fn process_lambda_expression(&mut self, node: &CstNode) {
+        // Lambda expressions have their own scope
+        // Parameters are not checked (they're parameters, not local variables)
+
+        // Find the lambda body
+        // Lambda can have: parameters and body
+        // Body can be an expression or a block
+        if let Some(body) = node.child_by_field_name("body") {
+            // Only process if it's a block (contains local variables)
+            if body.kind() == "block" {
+                // Create a new scope for the lambda
+                self.push_scope();
+                self.visit(&body);
+                self.pop_scope();
+            } else {
+                // Expression body - just visit it (might contain nested lambdas)
+                self.visit(&body);
+            }
+        } else {
+            // Fallback: visit all children
+            self.visit_children(node);
+        }
+    }
 }
 
 impl Rule for FinalLocalVariable {
@@ -800,6 +836,18 @@ impl Rule for FinalLocalVariable {
                     let mut visitor = FinalLocalVariableVisitor::new(self, ctx);
                     visitor.push_scope();
                     visitor.visit(node);
+                    visitor.pop_scope();
+                    return visitor.diagnostics;
+                }
+            }
+            "lambda_expression" => {
+                // Process lambda expressions (they can appear in field initializers, etc.)
+                if let Some(body) = node.child_by_field_name("body")
+                    && body.kind() == "block"
+                {
+                    let mut visitor = FinalLocalVariableVisitor::new(self, ctx);
+                    visitor.push_scope();
+                    visitor.visit(&body);
                     visitor.pop_scope();
                     return visitor.diagnostics;
                 }
