@@ -192,7 +192,10 @@ impl ModifierOrder {
         };
 
         match definition.kind() {
-            "local_variable_declaration" | "formal_parameter" | "constructor_declaration" => true,
+            "field_declaration"
+            | "local_variable_declaration"
+            | "formal_parameter"
+            | "constructor_declaration" => true,
             "method_declaration" => {
                 // Check if method has non-void return type
                 if let Some(type_node) = definition.child_by_field_name("type") {

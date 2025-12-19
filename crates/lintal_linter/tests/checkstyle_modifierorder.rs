@@ -189,3 +189,83 @@ fn test_modifier_order_it_two() {
 
     verify_violations(&violations, &expected);
 }
+
+// =============================================================================
+// Test: testModifierOrderSealedAndNonSealed
+// File: InputModifierOrderSealedAndNonSealed.java
+// Expected violations from checkstyle test:
+//   10:8: mod.order (public)
+//   27:12: mod.order (private)
+//   45:10: mod.order (sealed)
+//   51:11: mod.order (public)
+//   54:14: mod.order (static)
+//   59:10: mod.order (non-sealed)
+// =============================================================================
+
+#[test]
+fn test_modifier_order_sealed_and_non_sealed() {
+    let Some(source) = load_modifierorder_fixture("InputModifierOrderSealedAndNonSealed.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_modifier_order(&source);
+
+    let expected = vec![
+        Violation::modifier_order(10, 8),
+        Violation::modifier_order(27, 12),
+        Violation::modifier_order(45, 10),
+        Violation::modifier_order(51, 11),
+        Violation::modifier_order(54, 14),
+        Violation::modifier_order(59, 10),
+    ];
+
+    verify_violations(&violations, &expected);
+}
+
+// =============================================================================
+// Test: testSkipTypeAnnotationsOne
+// File: InputModifierOrderTypeAnnotationsOne.java
+// Expected violations from checkstyle test:
+//   101:13: annotation.order (@MethodAnnotation)
+// =============================================================================
+
+#[test]
+fn test_skip_type_annotations_one() {
+    let Some(source) =
+        load_modifierorder_fixture("InputModifierOrderTypeAnnotationsOne.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_modifier_order(&source);
+
+    let expected = vec![Violation::annotation_order(101, 13)];
+
+    verify_violations(&violations, &expected);
+}
+
+// =============================================================================
+// Test: testAnnotationOnAnnotationDeclaration
+// File: InputModifierOrderAnnotationDeclaration.java
+// Expected violations from checkstyle test:
+//   9:8: annotation.order (@InterfaceAnnotation)
+// =============================================================================
+
+#[test]
+fn test_annotation_on_annotation_declaration() {
+    let Some(source) =
+        load_modifierorder_fixture("InputModifierOrderAnnotationDeclaration.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_modifier_order(&source);
+
+    let expected = vec![Violation::annotation_order(9, 8)];
+
+    verify_violations(&violations, &expected);
+}
