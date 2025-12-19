@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 
 /// Checks that local variables that are never reassigned are declared final.
 pub struct FinalLocalVariable {
-    #[allow(dead_code)] // Will be used in later tasks for enhanced for loop support
     validate_enhanced_for_loop_variable: bool,
     validate_unnamed_variables: bool,
 }
@@ -197,6 +196,12 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             "switch_expression" | "switch_statement" => {
                 self.process_switch(node);
             }
+            "for_statement" | "while_statement" | "do_statement" => {
+                self.process_loop(node);
+            }
+            "enhanced_for_statement" => {
+                self.process_enhanced_for_loop(node);
+            }
             _ => {
                 self.visit_children(node);
             }
@@ -339,6 +344,168 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                         }
                     }
                     break;
+                }
+            }
+        }
+    }
+
+    /// Process a loop (for, while, do-while).
+    /// Variables declared outside the loop but assigned inside cannot be final
+    /// because the loop body may execute multiple times.
+    fn process_loop(&mut self, node: &CstNode) {
+        // Check if we have a scope
+        if self.scopes.is_empty() {
+            // No scope, just visit children normally
+            self.visit_children(node);
+            return;
+        }
+
+        // Take a snapshot of variables before the loop
+        let variables_before_loop: HashSet<String> = {
+            let current_scope = self.scopes.last().unwrap();
+            current_scope.variables.keys().cloned().collect()
+        };
+
+        // For for-statements, we need to create a new scope for variables declared in init
+        // (they're scoped to the for loop, not the enclosing method)
+        let is_for_statement = node.kind() == "for_statement";
+
+        if is_for_statement {
+            // Push a new scope for the for loop
+            self.push_scope();
+        }
+
+        // Visit all children (including initialization, condition, update, body)
+        self.visit_children(node);
+
+        // Pop the for loop scope if we created one
+        if is_for_statement {
+            self.pop_scope();
+        }
+
+        // After visiting the loop, mark any variable declared before the loop
+        // but assigned inside the loop as already_assigned (cannot be final)
+        let mut assigned_in_loop = HashSet::new();
+
+        // Find the loop body
+        let body = match node.kind() {
+            "for_statement" | "while_statement" => node.child_by_field_name("body"),
+            "do_statement" => {
+                // do-while has the body first
+                node.children().find(|child| child.kind() == "block")
+            }
+            _ => None,
+        };
+
+        if let Some(body_node) = body {
+            // Check which variables are assigned in the loop body
+            for var_name in &variables_before_loop {
+                if self.contains_assignment_to(&body_node, var_name) {
+                    assigned_in_loop.insert(var_name.clone());
+                }
+            }
+        }
+
+        // For for-statements, also check the update part
+        if node.kind() == "for_statement"
+            && let Some(update) = node.child_by_field_name("update")
+        {
+            for var_name in &variables_before_loop {
+                if self.contains_assignment_to(&update, var_name) {
+                    assigned_in_loop.insert(var_name.clone());
+                }
+            }
+        }
+
+        // Mark all variables assigned in the loop as already_assigned
+        if let Some(scope) = self.scopes.last_mut() {
+            for var_name in &assigned_in_loop {
+                if let Some(var) = scope.variables.get_mut(var_name) {
+                    var.already_assigned = true;
+                }
+            }
+        }
+    }
+
+    /// Process an enhanced for loop (for-each).
+    /// The loop variable can optionally be checked based on validateEnhancedForLoopVariable.
+    fn process_enhanced_for_loop(&mut self, node: &CstNode) {
+        // Check if we have a scope
+        if self.scopes.is_empty() {
+            // No scope, just visit children normally
+            self.visit_children(node);
+            return;
+        }
+
+        // Take a snapshot of variables before the loop
+        let variables_before_loop: HashSet<String> = {
+            let current_scope = self.scopes.last().unwrap();
+            current_scope.variables.keys().cloned().collect()
+        };
+
+        // Handle the loop variable declaration if validateEnhancedForLoopVariable is enabled
+        if self.rule.validate_enhanced_for_loop_variable {
+            // Find the loop variable declaration
+            // enhanced_for_statement has: modifiers? type name ':' value body
+            // Check if the loop variable has 'final' modifier
+            let mut has_final = false;
+
+            // Check for modifiers as direct children of enhanced_for_statement
+            for child in node.children() {
+                if child.kind() == "modifiers" {
+                    has_final = super::common::has_modifier(&child, "final");
+                    break;
+                } else if child.kind() == "final" {
+                    has_final = true;
+                    break;
+                }
+            }
+
+            // If no final modifier, check if the loop variable is reassigned in the body
+            if !has_final
+                && let Some(name_node) = node.child_by_field_name("name")
+            {
+                let var_name = &self.ctx.source()[name_node.range()];
+
+                // Skip unnamed variables if configured
+                if !self.rule.validate_unnamed_variables && var_name == "_" {
+                    // Don't check this variable
+                } else {
+                    // Check if the variable is assigned in the loop body
+                    let mut assigned_in_body = false;
+                    if let Some(body) = node.child_by_field_name("body") {
+                        assigned_in_body = self.contains_assignment_to(&body, var_name);
+                    }
+
+                    // If not assigned in body, it should be final
+                    if !assigned_in_body {
+                        self.report_violation(name_node.range(), var_name);
+                    }
+                }
+            }
+        }
+
+        // Visit all children
+        self.visit_children(node);
+
+        // After visiting the loop, mark any variable declared before the loop
+        // but assigned inside the loop as already_assigned (cannot be final)
+        if let Some(body) = node.child_by_field_name("body") {
+            let mut assigned_in_loop = HashSet::new();
+
+            // Check which variables are assigned in the loop body
+            for var_name in &variables_before_loop {
+                if self.contains_assignment_to(&body, var_name) {
+                    assigned_in_loop.insert(var_name.clone());
+                }
+            }
+
+            // Mark all variables assigned in the loop as already_assigned
+            if let Some(scope) = self.scopes.last_mut() {
+                for var_name in &assigned_in_loop {
+                    if let Some(var) = scope.variables.get_mut(var_name) {
+                        var.already_assigned = true;
+                    }
                 }
             }
         }

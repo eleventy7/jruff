@@ -618,3 +618,254 @@ public class Test {
 
     verify_violations(&violations, &expected);
 }
+
+// =============================================================================
+// Task 15: Loop tests
+// =============================================================================
+
+// Test simple for loop with variable assigned in loop
+#[test]
+fn test_for_loop_assignment() {
+    let source = r#"
+public class Test {
+    void test() {
+        // Should NOT report: assigned in loop (multiple times)
+        int sum = 0;
+        for (int i = 0; i < 10; i++) {
+            sum += i;
+        }
+
+        // Should NOT report: loop variable is updated in update section
+        for (int j = 0; j < 10; j++) {
+        }
+
+        // Should report: loop variable never modified
+        for (int k = 0; k < 10; ) {
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Should report 'k' at line 15 (loop variable never modified)
+    let expected = vec![Violation::new(15, 18)];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test while loop
+#[test]
+fn test_while_loop_assignment() {
+    let source = r#"
+public class Test {
+    void test() {
+        // Should NOT report: assigned in loop (multiple times)
+        int i = 0;
+        while (i < 10) {
+            i++;
+        }
+
+        // Should report: never assigned in loop
+        int j = 0;
+        while (j < 10) {
+            // j not modified here, but condition uses it
+            // This is still a violation because loop might not execute
+            break;
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Should report 'j' at line 11
+    let expected = vec![Violation::new(11, 13)];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test do-while loop
+#[test]
+fn test_do_while_loop_assignment() {
+    let source = r#"
+public class Test {
+    void test() {
+        // Should NOT report: assigned in loop
+        int i = 0;
+        do {
+            i++;
+        } while (i < 10);
+
+        // Should report: not assigned in loop body
+        int j = 0;
+        do {
+            // j not modified
+        } while (j < 10);
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Should report 'j' at line 11
+    let expected = vec![Violation::new(11, 13)];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test enhanced for loop without validateEnhancedForLoopVariable
+#[test]
+fn test_enhanced_for_loop_default() {
+    let source = r#"
+public class Test {
+    void test() {
+        int[] array = {1, 2, 3};
+
+        // Should NOT report: validateEnhancedForLoopVariable is false by default
+        for (int x : array) {
+        }
+
+        // Should NOT report: has final modifier
+        for (final int y : array) {
+        }
+
+        // Should NOT report: reassigned in body
+        for (int z : array) {
+            z = z + 1;
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // 'array' should be final (validateEnhancedForLoopVariable is false by default)
+    let expected = vec![Violation::new(4, 15)];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test enhanced for loop with validateEnhancedForLoopVariable enabled
+#[test]
+fn test_enhanced_for_loop_validate_enabled() {
+    let source = r#"
+public class Test {
+    void test() {
+        int[] array = {1, 2, 3};
+
+        // Should report: not final and not reassigned
+        for (int x : array) {
+        }
+
+        // Should NOT report: has final modifier
+        for (final int y : array) {
+        }
+
+        // Should NOT report: reassigned in body
+        for (int z : array) {
+            z = z + 1;
+        }
+    }
+}
+"#;
+
+    let mut properties = HashMap::new();
+    properties.insert("validateEnhancedForLoopVariable", "true");
+    let violations = check_final_local_variable(source, properties);
+
+    // Should report 'array' at line 4 and 'x' at line 7
+    let expected = vec![Violation::new(4, 15), Violation::new(7, 18)];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test variable declared outside loop, assigned inside
+#[test]
+fn test_variable_assigned_in_loop() {
+    let source = r#"
+public class Test {
+    void test() {
+        // Should NOT report: assigned in loop body (may execute multiple times)
+        String result;
+        for (int i = 0; i < 10; i++) {
+            result = "value";
+        }
+
+        // Should report: declared in loop, never reassigned
+        for (int j = 0; j < 10; j++) {
+            String temp = "temp";
+        }
+
+        // Should NOT report: variable assigned outside loop then inside
+        int count = 0;
+        for (int k = 0; k < 10; k++) {
+            count++;
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Should report 'temp' at line 12 (j is reassigned by j++, k is reassigned by count++)
+    let expected = vec![
+        Violation::new(12, 20), // temp
+    ];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test from checkstyle: InputFinalLocalVariableEnhancedForLoopVariable
+#[test]
+fn test_input_final_local_variable_enhanced_for_loop_variable() {
+    let Some(source) =
+        load_finallocalvariable_fixture("InputFinalLocalVariableEnhancedForLoopVariable.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let mut properties = HashMap::new();
+    properties.insert("validateEnhancedForLoopVariable", "true");
+    let violations = check_final_local_variable(&source, properties);
+
+    // Note: Line 29 (snippets parameter) is not detected because we don't check parameters yet
+    // That's part of Task 16 (edge cases)
+    let expected = vec![
+        Violation::new(16, 20), // a in method1 for loop
+        Violation::new(23, 13), // x in method2
+        Violation::new(31, 32), // filteredSnippets
+        Violation::new(33, 21), // snippet in for loop
+        Violation::new(48, 20), // a in method4 for loop
+        Violation::new(51, 16), // a (second declaration)
+    ];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test from checkstyle: InputFinalLocalVariableBreak
+#[test]
+fn test_input_final_local_variable_break() {
+    let Some(source) =
+        load_finallocalvariable_fixture("InputFinalLocalVariableBreak.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(&source, properties);
+
+    let expected = vec![
+        Violation::new(15, 19), // e
+        Violation::new(52, 13), // a
+    ];
+
+    verify_violations(&violations, &expected);
+}
