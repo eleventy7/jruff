@@ -757,10 +757,7 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                                 .get(var_name)
                                 .map(|(_, aa)| *aa)
                                 .unwrap_or(false)
-                                && !before_if
-                                    .get(var_name)
-                                    .map(|(_, aa)| *aa)
-                                    .unwrap_or(false);
+                                && !before_if.get(var_name).map(|(_, aa)| *aa).unwrap_or(false);
                             if var.already_assigned
                                 && !var.has_initializer
                                 && !assigned_multiple_in_consequence
