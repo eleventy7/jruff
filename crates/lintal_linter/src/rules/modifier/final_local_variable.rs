@@ -102,11 +102,11 @@ impl ScopeData {
         }
     }
 
-    /// Get all variables that should be final (assigned 0 or 1 times).
+    /// Get all variables that should be final (never assigned after initialization).
     fn get_should_be_final(&self) -> Vec<&VariableCandidate> {
         self.variables
             .values()
-            .filter(|v| !v.already_assigned)
+            .filter(|v| !v.assigned && !v.already_assigned)
             .collect()
     }
 }
@@ -192,10 +192,16 @@ impl<'a> FinalLocalVariableVisitor<'a> {
     /// Process a variable declaration.
     fn process_variable_declaration(&mut self, node: &CstNode) {
         // Check if already has final modifier
-        if let Some(modifiers) = node.child_by_field_name("modifiers")
-            && modifiers.children().any(|c| c.kind() == "final")
-        {
-            return; // Already final, skip
+        // Note: modifiers might not be a field, check children
+        for child in node.children() {
+            if child.kind() == "modifiers" {
+                if super::common::has_modifier(&child, "final") {
+                    return; // Already final, skip
+                }
+            } else if child.kind() == "final" {
+                // Sometimes final appears directly as a child
+                return;
+            }
         }
 
         // Find all variable declarators
@@ -280,7 +286,7 @@ impl Rule for FinalLocalVariable {
                 if let Some(body) = node.child_by_field_name("body") {
                     let mut visitor = FinalLocalVariableVisitor::new(self, ctx);
                     visitor.push_scope();
-                    visitor.visit_children(&body);
+                    visitor.visit(&body);
                     visitor.pop_scope();
                     return visitor.diagnostics;
                 }
@@ -291,7 +297,7 @@ impl Rule for FinalLocalVariable {
                     if child.kind() == "block" {
                         let mut visitor = FinalLocalVariableVisitor::new(self, ctx);
                         visitor.push_scope();
-                        visitor.visit_children(&child);
+                        visitor.visit(&child);
                         visitor.pop_scope();
                         return visitor.diagnostics;
                     }
@@ -304,7 +310,7 @@ impl Rule for FinalLocalVariable {
                 {
                     let mut visitor = FinalLocalVariableVisitor::new(self, ctx);
                     visitor.push_scope();
-                    visitor.visit_children(node);
+                    visitor.visit(node);
                     visitor.pop_scope();
                     return visitor.diagnostics;
                 }

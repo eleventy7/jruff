@@ -158,3 +158,116 @@ fn test_input_final_local_variable_one() {
 
     verify_violations(&violations, &expected);
 }
+
+// Minimal test to debug assignment tracking
+#[test]
+fn test_minimal_assignment_tracking() {
+    let source = r#"
+public class Test {
+    public void test() {
+        // Should report: never reassigned
+        int a = 0;
+
+        // Should NOT report: has final
+        final int b = 1;
+
+        // Should NOT report: incremented
+        int c = 0;
+        c++;
+
+        // Should NOT report: compound assignment
+        int d = 0;
+        d += 5;
+
+        // Should NOT report: reassigned
+        int e = 0;
+        e = 5;
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Should only report 'a' at line 5
+    let expected = vec![Violation::new(5, 13)];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test all forms of assignment operators
+#[test]
+fn test_all_assignment_operators() {
+    let source = r#"
+public class Test {
+    public void test() {
+        // Should report: never reassigned
+        int a = 0;
+
+        // Should NOT report: simple assignment
+        int b = 0;
+        b = 5;
+
+        // Should NOT report: compound assignments
+        int c1 = 0;
+        c1 += 5;
+
+        int c2 = 0;
+        c2 -= 3;
+
+        int c3 = 0;
+        c3 *= 2;
+
+        int c4 = 0;
+        c4 /= 2;
+
+        int c5 = 0;
+        c5 %= 3;
+
+        int c6 = 0;
+        c6 &= 1;
+
+        int c7 = 0;
+        c7 |= 2;
+
+        int c8 = 0;
+        c8 ^= 4;
+
+        int c9 = 0;
+        c9 <<= 1;
+
+        int c10 = 0;
+        c10 >>= 1;
+
+        int c11 = 0;
+        c11 >>>= 1;
+
+        // Should NOT report: increment/decrement
+        int d1 = 0;
+        d1++;
+
+        int d2 = 0;
+        ++d2;
+
+        int d3 = 0;
+        d3--;
+
+        int d4 = 0;
+        --d4;
+
+        // Should NOT report: assigned multiple times
+        int e = 0;
+        e = 1;
+        e = 2;
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Should only report 'a' at line 5
+    let expected = vec![Violation::new(5, 13)];
+
+    verify_violations(&violations, &expected);
+}
