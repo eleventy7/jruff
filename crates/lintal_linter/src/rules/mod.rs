@@ -8,5 +8,5 @@ pub mod whitespace;
 pub use blocks::{
     AvoidNestedBlocks, EmptyBlock, EmptyCatchBlock, LeftCurly, NeedBraces, RightCurly,
 };
-pub use modifier::{FinalParameters, ModifierOrder, RedundantModifier};
+pub use modifier::{FinalLocalVariable, FinalParameters, ModifierOrder, RedundantModifier};
 pub use whitespace::*;
