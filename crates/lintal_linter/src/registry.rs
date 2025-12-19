@@ -51,8 +51,8 @@ impl RuleRegistry {
         use crate::rules::{
             AvoidNestedBlocks, EmptyBlock, EmptyCatchBlock, EmptyForInitializerPad,
             FileTabCharacter, FinalParameters, LeftCurly, MethodParamPad, ModifierOrder,
-            NeedBraces, NoWhitespaceAfter, NoWhitespaceBefore, ParenPad, RightCurly,
-            SingleSpaceSeparator, TypecastParenPad, WhitespaceAfter, WhitespaceAround,
+            NeedBraces, NoWhitespaceAfter, NoWhitespaceBefore, ParenPad, RedundantModifier,
+            RightCurly, SingleSpaceSeparator, TypecastParenPad, WhitespaceAfter, WhitespaceAround,
         };
         self.register::<WhitespaceAround>();
         self.register::<WhitespaceAfter>();
@@ -72,6 +72,7 @@ impl RuleRegistry {
         self.register::<AvoidNestedBlocks>();
         self.register::<ModifierOrder>();
         self.register::<FinalParameters>();
+        self.register::<RedundantModifier>();
     }
 
     /// Create a rule from a module name and properties.
