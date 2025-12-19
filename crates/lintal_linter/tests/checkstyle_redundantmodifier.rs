@@ -139,14 +139,16 @@ fn test_it_one() {
 
     let violations = check_redundant_modifier(&source, Some("11"));
 
-    // Task 5: Interface/annotation modifier violations only
-    // Lines 82, 91 are Task 7 (final methods in private/final class)
+    // Task 5: Interface/annotation modifier violations
+    // Task 7: Final method violations (lines 82, 91)
     let expected = vec![
         Violation::new(57, 12, "static"),   // static nested interface
         Violation::new(60, 9, "public"),    // public interface method
         Violation::new(66, 9, "abstract"),  // abstract interface method
         Violation::new(69, 9, "public"),    // public interface field
         Violation::new(75, 9, "final"),     // final interface field
+        Violation::new(82, 13, "final"),    // final on private method (Task 7)
+        Violation::new(91, 12, "final"),    // final on method in final class (Task 7)
         Violation::new(102, 1, "abstract"), // abstract interface definition
     ];
 
@@ -261,6 +263,77 @@ fn test_nested_static_enum() {
         Violation::new(12, 5, "static"), // nested in class
         Violation::new(16, 9, "static"), // nested in enum
         Violation::new(20, 9, "static"), // nested in interface
+    ];
+
+    verify_violations(&violations, &expected);
+}
+
+#[test]
+fn test_final_in_anonymous_class() {
+    let Some(source) =
+        load_redundantmodifier_fixture("InputRedundantModifierFinalInAnonymousClass.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_redundant_modifier(&source, None);
+
+    // Final on method in anonymous class is redundant
+    let expected = vec![Violation::new(22, 20, "final")];
+
+    verify_violations(&violations, &expected);
+}
+
+#[test]
+fn test_private_method_in_private_class() {
+    let Some(source) =
+        load_redundantmodifier_fixture("InputRedundantModifierPrivateMethodInPrivateClass.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_redundant_modifier(&source, None);
+
+    // Final on private method is redundant
+    let expected = vec![Violation::new(13, 17, "final")];
+
+    verify_violations(&violations, &expected);
+}
+
+#[test]
+fn test_enum_static_methods() {
+    let Some(source) =
+        load_redundantmodifier_fixture("InputRedundantModifierFinalInEnumStaticMethods.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_redundant_modifier(&source, None);
+
+    // Final on static method in enum is redundant (static methods are not overridable)
+    let expected = vec![Violation::new(20, 23, "final")];
+
+    verify_violations(&violations, &expected);
+}
+
+#[test]
+fn test_enum_methods() {
+    let Some(source) =
+        load_redundantmodifier_fixture("InputRedundantModifierFinalInEnumMethods.java")
+    else {
+        eprintln!("Skipping test: checkstyle repo not available");
+        return;
+    };
+
+    let violations = check_redundant_modifier(&source, None);
+
+    // Final on methods inside enum constant bodies (anonymous classes) is redundant
+    let expected = vec![
+        Violation::new(15, 16, "final"), // E2 constant body
+        Violation::new(30, 16, "final"), // E1 constant body in second enum
     ];
 
     verify_violations(&violations, &expected);

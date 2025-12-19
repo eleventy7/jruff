@@ -138,32 +138,61 @@ impl RedundantModifier {
     fn check_method_modifiers(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
-        // Check if the method is in an interface or annotation
-        if !self.is_in_interface_or_annotation(node) {
-            return diagnostics;
-        }
-
         // Find modifiers - it's the first child with kind "modifiers"
         let modifiers = node
             .children()
             .find(|child| child.kind() == "modifiers");
 
-        if let Some(modifiers) = modifiers {
-            // Interface/annotation methods are implicitly public and abstract (unless default/static)
-            let has_default = self.find_modifier(&modifiers, "default").is_some();
-            let has_static = self.find_modifier(&modifiers, "static").is_some();
+        // Check if the method is in an interface or annotation
+        if self.is_in_interface_or_annotation(node) {
+            if let Some(modifiers) = modifiers {
+                // Interface/annotation methods are implicitly public and abstract (unless default/static)
+                let has_default = self.find_modifier(&modifiers, "default").is_some();
+                let has_static = self.find_modifier(&modifiers, "static").is_some();
 
-            // Public is always redundant
-            if let Some(public_mod) = self.find_modifier(&modifiers, "public") {
-                diagnostics.push(self.create_diagnostic(ctx, &public_mod, "public"));
+                // Public is always redundant
+                if let Some(public_mod) = self.find_modifier(&modifiers, "public") {
+                    diagnostics.push(self.create_diagnostic(ctx, &public_mod, "public"));
+                }
+
+                // Abstract is redundant for non-static, non-default methods
+                if !has_default
+                    && !has_static
+                    && let Some(abstract_mod) = self.find_modifier(&modifiers, "abstract")
+                {
+                    diagnostics.push(self.create_diagnostic(ctx, &abstract_mod, "abstract"));
+                }
+            }
+            return diagnostics;
+        }
+
+        // Task 7: Check for redundant 'final' modifiers on methods
+        if let Some(modifiers) = modifiers
+            && let Some(final_mod) = self.find_modifier(&modifiers, "final")
+        {
+            // Exception: @SafeVarargs methods can have final modifier
+            if self.has_safe_varargs_annotation(node) {
+                return diagnostics;
             }
 
-            // Abstract is redundant for non-static, non-default methods
-            if !has_default
-                && !has_static
-                && let Some(abstract_mod) = self.find_modifier(&modifiers, "abstract")
-            {
-                diagnostics.push(self.create_diagnostic(ctx, &abstract_mod, "abstract"));
+            let has_private = self.find_modifier(&modifiers, "private").is_some();
+            let has_static = self.find_modifier(&modifiers, "static").is_some();
+            let in_final_class = self.is_in_final_class(node);
+            let in_anonymous_class = self.is_in_anonymous_class(node);
+            let in_enum = self.is_in_enum(node);
+
+            // Check if final is redundant in any of these cases:
+            // 1. Final on private method (cannot be overridden)
+            // 2. Final on method in final class
+            // 3. Final on method in anonymous class
+            // 4. Final on static method in enum (static methods cannot be overridden)
+            let is_final_redundant = has_private
+                || in_final_class
+                || in_anonymous_class
+                || (in_enum && has_static);
+
+            if is_final_redundant {
+                diagnostics.push(self.create_diagnostic(ctx, &final_mod, "final"));
             }
         }
 
@@ -395,6 +424,60 @@ impl RedundantModifier {
         false
     }
 
+    /// Check if a node is in a final class.
+    fn is_in_final_class(&self, node: &CstNode) -> bool {
+        let mut current = node.parent();
+        while let Some(parent) = current {
+            if parent.kind() == "class_declaration" {
+                if let Some(modifiers) = parent.children().find(|c| c.kind() == "modifiers") {
+                    return self.find_modifier(&modifiers, "final").is_some();
+                }
+                return false;
+            }
+            current = parent.parent();
+        }
+        false
+    }
+
+    /// Check if a node is in an anonymous class.
+    fn is_in_anonymous_class(&self, node: &CstNode) -> bool {
+        let mut current = node.parent();
+        while let Some(parent) = current {
+            // Anonymous class is an object_creation_expression with a class_body
+            if parent.kind() == "object_creation_expression" {
+                return parent.children().any(|c| c.kind() == "class_body");
+            }
+            // Enum constants with bodies are also anonymous classes
+            if parent.kind() == "enum_constant" {
+                return parent.children().any(|c| c.kind() == "class_body");
+            }
+            // Stop at class/enum boundaries (but not at enum_constant)
+            if matches!(parent.kind(), "class_declaration" | "enum_declaration") {
+                return false;
+            }
+            current = parent.parent();
+        }
+        false
+    }
+
+    /// Check if a method has @SafeVarargs annotation.
+    fn has_safe_varargs_annotation(&self, method_node: &CstNode) -> bool {
+        // Annotations are inside the modifiers node
+        if let Some(modifiers) = method_node.children().find(|c| c.kind() == "modifiers") {
+            for child in modifiers.children() {
+                if matches!(child.kind(), "marker_annotation" | "annotation") {
+                    // Get the annotation text (e.g., "@SafeVarargs")
+                    let text = child.text();
+                    // Check if it contains "SafeVarargs"
+                    if text.contains("SafeVarargs") {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     /// Create a diagnostic for a redundant modifier.
     fn create_diagnostic(&self, _ctx: &CheckContext, node: &CstNode, modifier: &str) -> Diagnostic {
         Diagnostic::new(
@@ -529,5 +612,25 @@ mod tests {
             .kind
             .body
             .contains("Redundant 'public' modifier"));
+    }
+
+    #[test]
+    fn test_safe_varargs_allows_final() {
+        let source = "class Test { @SafeVarargs private final void foo(int... k) {} }";
+        let diagnostics = check_source(source, None);
+        // @SafeVarargs methods should allow final modifier
+        assert_eq!(diagnostics.len(), 0, "Expected 0 violations for @SafeVarargs method");
+    }
+
+    #[test]
+    fn test_private_final_without_safe_varargs() {
+        let source = "class Test { private final void foo() {} }";
+        let diagnostics = check_source(source, None);
+        // Without @SafeVarargs, final on private method is redundant
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .kind
+            .body
+            .contains("Redundant 'final' modifier"));
     }
 }
