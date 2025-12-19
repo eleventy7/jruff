@@ -6,7 +6,7 @@ use crate::{CheckContext, FromConfig, Rule};
 use lintal_diagnostics::{Diagnostic, FixAvailability, Violation};
 use lintal_java_cst::CstNode;
 use lintal_text_size::TextRange;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Checks that local variables that are never reassigned are declared final.
 pub struct FinalLocalVariable {
@@ -57,6 +57,8 @@ struct VariableCandidate {
     ident_range: TextRange,
     /// The name of the variable
     name: String,
+    /// Whether this variable was declared with an initializer
+    has_initializer: bool,
     /// Whether this variable has been assigned (not including initialization)
     assigned: bool,
     /// Whether this variable has been assigned more than once
@@ -78,12 +80,13 @@ impl ScopeData {
     }
 
     /// Add a variable declaration to this scope.
-    fn add_variable(&mut self, name: String, ident_range: TextRange) {
+    fn add_variable(&mut self, name: String, ident_range: TextRange, has_initializer: bool) {
         self.variables.insert(
             name.clone(),
             VariableCandidate {
                 ident_range,
                 name,
+                has_initializer,
                 assigned: false,
                 already_assigned: false,
             },
@@ -102,11 +105,23 @@ impl ScopeData {
         }
     }
 
-    /// Get all variables that should be final (never assigned after initialization).
+    /// Get all variables that should be final (never reassigned).
     fn get_should_be_final(&self) -> Vec<&VariableCandidate> {
         self.variables
             .values()
-            .filter(|v| !v.assigned && !v.already_assigned)
+            .filter(|v| {
+                if v.already_assigned {
+                    // Assigned more than once, never a candidate
+                    false
+                } else if v.has_initializer {
+                    // Has initializer, should be final if never reassigned
+                    !v.assigned
+                } else {
+                    // No initializer, should be final (we don't check assigned flag because
+                    // the first assignment is effectively the initialization)
+                    true
+                }
+            })
             .collect()
     }
 }
@@ -176,6 +191,9 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                 self.process_update_expression(node);
                 self.visit_children(node);
             }
+            "if_statement" => {
+                self.process_if_statement(node);
+            }
             _ => {
                 self.visit_children(node);
             }
@@ -216,9 +234,12 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                     continue;
                 }
 
+                // Check if this declarator has an initializer
+                let has_initializer = child.child_by_field_name("value").is_some();
+
                 // Add to current scope
                 if let Some(scope) = self.current_scope() {
-                    scope.add_variable(var_name.to_string(), name_node.range());
+                    scope.add_variable(var_name.to_string(), name_node.range(), has_initializer);
                 }
             }
         }
@@ -268,6 +289,136 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                         }
                     }
                     break;
+                }
+            }
+        }
+    }
+
+    /// Process an if statement with control flow analysis.
+    fn process_if_statement(&mut self, node: &CstNode) {
+        // Check if we have a scope
+        if self.scopes.is_empty() {
+            // No scope, just visit children normally
+            self.visit_children(node);
+            return;
+        }
+
+        // Track which variables were uninitialized before the if statement
+        let uninitialized_before: HashSet<String> = {
+            let current_scope = self.scopes.last().unwrap();
+            current_scope
+                .variables
+                .iter()
+                .filter(|(_, v)| !v.assigned && !v.already_assigned)
+                .map(|(name, _)| name.clone())
+                .collect()
+        };
+
+        // Take a snapshot of assignments before processing branches
+        let before_if: HashMap<String, (bool, bool)> = {
+            let current_scope = self.scopes.last().unwrap();
+            current_scope
+                .variables
+                .iter()
+                .map(|(name, v)| (name.clone(), (v.assigned, v.already_assigned)))
+                .collect()
+        };
+
+        // Process the condition
+        if let Some(condition) = node.child_by_field_name("condition") {
+            self.visit(&condition);
+        }
+
+        // Process the consequence (then branch)
+        let mut consequence_assignments = HashSet::new();
+        if let Some(consequence) = node.child_by_field_name("consequence") {
+            self.visit(&consequence);
+
+            // Detect what was assigned in the consequence
+            if let Some(scope) = self.scopes.last() {
+                for (name, var) in &scope.variables {
+                    if let Some(&(before_assigned, before_already_assigned)) =
+                        before_if.get(name)
+                        && var.assigned && !before_assigned && !before_already_assigned
+                    {
+                        consequence_assignments.insert(name.clone());
+                    }
+                }
+            }
+        }
+
+        // Process the alternative (else branch) if it exists
+        let mut alternative_assignments = HashSet::new();
+        let has_alternative = if let Some(alternative) = node.child_by_field_name("alternative") {
+            self.visit(&alternative);
+
+            // Detect what was assigned in the alternative
+            if let Some(scope) = self.scopes.last() {
+                for (name, var) in &scope.variables {
+                    if let Some(&(before_assigned, before_already_assigned)) =
+                        before_if.get(name)
+                        && var.assigned && !before_assigned && !before_already_assigned
+                    {
+                        alternative_assignments.insert(name.clone());
+                    }
+                }
+            }
+            true
+        } else {
+            false
+        };
+
+        // Merge the results based on control flow rules
+        if let Some(scope) = self.scopes.last_mut() {
+            if has_alternative {
+                // Both branches exist
+                for var_name in &uninitialized_before {
+                    let in_consequence = consequence_assignments.contains(var_name);
+                    let in_alternative = alternative_assignments.contains(var_name);
+
+                    if in_consequence && in_alternative {
+                        // Assigned in both branches - this counts as single initialization
+                        // The normal mark_assigned logic already set assigned=true, we don't
+                        // want to mark as already_assigned
+                        // However, we need to "undo" the double-assignment marking
+                        if let Some(var) = scope.variables.get_mut(var_name) {
+                            // If the variable was marked as already_assigned due to being
+                            // assigned in both branches, we need to reset that since for
+                            // uninitialized variables, this is effectively a single initialization
+                            if var.already_assigned && !var.has_initializer {
+                                var.already_assigned = false;
+                                var.assigned = true;
+                            }
+                        }
+                    } else if in_consequence || in_alternative {
+                        // Assigned in only one branch - still OK as single initialization
+                        // Don't mark as already_assigned
+                    }
+                }
+
+                // For variables that were already initialized before the if
+                for (var_name, var) in scope.variables.iter_mut() {
+                    if !uninitialized_before.contains(var_name) && var.has_initializer {
+                        // Variable was initialized before
+                        let in_consequence = consequence_assignments.contains(var_name);
+                        let in_alternative = alternative_assignments.contains(var_name);
+
+                        if in_consequence || in_alternative {
+                            // Assigned in at least one branch after being initialized
+                            var.already_assigned = true;
+                        }
+                    }
+                }
+            } else {
+                // Only consequence branch exists (no else)
+                // Variables assigned in the consequence that were already initialized should be marked
+                for (var_name, var) in scope.variables.iter_mut() {
+                    if !uninitialized_before.contains(var_name)
+                        && var.has_initializer
+                        && consequence_assignments.contains(var_name)
+                    {
+                        var.already_assigned = true;
+                    }
                 }
             }
         }

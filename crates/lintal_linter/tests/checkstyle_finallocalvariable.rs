@@ -271,3 +271,107 @@ public class Test {
 
     verify_violations(&violations, &expected);
 }
+
+// Test if/else control flow scenarios
+#[test]
+fn test_if_else_control_flow() {
+    let source = r#"
+public class Test {
+    public void test() {
+        // Assigned in both branches - should be final candidate
+        int a; // violation at line 5
+        if (true) {
+            a = 1;
+        } else {
+            a = 2;
+        }
+
+        // Assigned in only one branch - should be final candidate
+        int b; // violation at line 13
+        if (true) {
+            b = 1;
+        }
+
+        // Assigned before if, then again in if - NOT a candidate
+        int c = 0;
+        if (true) {
+            c = 1;
+        }
+
+        // Assigned in both branches, then again after - NOT a candidate
+        int d;
+        if (true) {
+            d = 1;
+        } else {
+            d = 2;
+        }
+        d = 3;
+
+        // Assigned in if and else if - should be final candidate
+        int e; // violation at line 34
+        if (true) {
+            e = 1;
+        } else if (true) {
+            e = 2;
+        } else {
+            e = 3;
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    let expected = vec![
+        Violation::new(5, 13),  // a
+        Violation::new(13, 13), // b
+        Violation::new(34, 13), // e
+    ];
+
+    verify_violations(&violations, &expected);
+}
+
+// Test case from checkstyle: variable assigned in all branches then again later
+#[test]
+fn test_reassignment_after_branches() {
+    let source = r#"
+public class Test {
+    private void foo7() {
+        int index;
+        if (true) {
+            index = 0;
+        }
+        else if (true) {
+            index = 2;
+        }
+        else {
+            return;
+        }
+        if (true) {
+            index += 1;
+        }
+    }
+
+    private void simple() {
+        int a;
+        if (true) {
+            a = 1;
+        } else {
+            a = 2;
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // 'index' is not a candidate because it's reassigned after branches
+    // 'a' should be a candidate because it's only assigned in branches
+    let expected = vec![
+        Violation::new(20, 13), // a
+    ];
+
+    verify_violations(&violations, &expected);
+}
