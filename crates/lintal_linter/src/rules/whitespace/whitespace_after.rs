@@ -204,21 +204,25 @@ fn is_semicolon_exempt(ctx: &CheckContext, node: &CstNode) -> bool {
     let source = ctx.source();
 
     // Check what follows
-    if let Some(c) = source[usize::from(after_pos)..].chars().next() {
-        // End of line is OK
-        if c == '\n' || c == '\r' {
-            return true;
-        }
-        // Closing paren is OK (for loop)
-        if c == ')' {
-            return true;
-        }
-        // Another semicolon is OK (empty for parts)
-        if c == ';' {
-            return true;
+    match source[usize::from(after_pos)..].chars().next() {
+        // End of file is OK
+        None => true,
+        Some(c) => {
+            // End of line is OK
+            if c == '\n' || c == '\r' {
+                return true;
+            }
+            // Closing paren is OK (for loop)
+            if c == ')' {
+                return true;
+            }
+            // Another semicolon is OK (empty for parts)
+            if c == ';' {
+                return true;
+            }
+            false
         }
     }
-    false
 }
 
 #[cfg(test)]
@@ -278,6 +282,21 @@ mod tests {
         assert!(
             semi_violations.is_empty(),
             "Should not flag semicolon at EOL"
+        );
+    }
+
+    #[test]
+    fn test_semicolon_end_of_file() {
+        // Package declaration with semicolon at EOF (no trailing newline)
+        let diagnostics = check_source("package foo;");
+        let semi_violations: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.kind.body.contains(";"))
+            .collect();
+        assert!(
+            semi_violations.is_empty(),
+            "Should not flag semicolon at EOF: {:?}",
+            semi_violations
         );
     }
 

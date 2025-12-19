@@ -10,6 +10,22 @@ lintal reads checkstyle.xml configuration files and can automatically fix many v
 
 The project is focused on safely autofixable cases to begin with, and aims for 100% compatibility with Checkstyle. Checkstyle test cases are downloaded during the testing build phase to validate compatibility.
 
+## Performance
+
+lintal is significantly faster than checkstyle due to native compilation and parallel processing.
+
+**Benchmark on [Aeron](https://github.com/real-logic/aeron)** (1,208 Java files):
+
+| Tool | Time | Speedup |
+|------|------|---------|
+| Checkstyle (via Gradle) | 10.4s | baseline |
+| lintal | 1.2s | **8.4x faster** |
+
+Key factors:
+- Native binary with no JVM startup overhead
+- Parallel file processing (utilizes all CPU cores)
+- Efficient tree-sitter parsing
+
 ## Features
 
 - Reads existing checkstyle.xml configurations
@@ -45,7 +61,7 @@ lintal fix src/ --diff
 
 ## Supported Rules
 
-lintal currently implements 16 checkstyle rules with 100% compatibility against checkstyle's own test suite.
+lintal currently implements 20 checkstyle rules with 100% compatibility against checkstyle's own test suite.
 
 ### Whitespace (10 rules)
 
@@ -72,6 +88,15 @@ lintal currently implements 16 checkstyle rules with 100% compatibility against 
 | EmptyBlock | ❌ | 100% compatible |
 | EmptyCatchBlock | ❌ | 100% compatible |
 | AvoidNestedBlocks | ❌ | 100% compatible |
+
+### Modifiers (4 rules)
+
+| Rule | Auto-fix | Status |
+|------|----------|--------|
+| ModifierOrder | ✅ | 100% compatible |
+| RedundantModifier | ✅ | 100% compatible |
+| FinalParameters | ✅ | 100% compatible |
+| FinalLocalVariable | ✅ | 100% compatible |
 
 ## Development
 
