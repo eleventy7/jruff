@@ -404,8 +404,7 @@ fn test_receiver_parameters() {
 
 #[test]
 fn test_unnamed_parameters_property_true() {
-    let Some(source) =
-        load_finalparameters_fixture("InputFinalParametersUnnamedPropertyTrue.java")
+    let Some(source) = load_finalparameters_fixture("InputFinalParametersUnnamedPropertyTrue.java")
     else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
@@ -413,7 +412,10 @@ fn test_unnamed_parameters_property_true() {
 
     let mut properties = HashMap::new();
     properties.insert("ignoreUnnamedParameters", "true");
-    properties.insert("tokens", "METHOD_DEF,CTOR_DEF,LITERAL_CATCH,FOR_EACH_CLAUSE");
+    properties.insert(
+        "tokens",
+        "METHOD_DEF,CTOR_DEF,LITERAL_CATCH,FOR_EACH_CLAUSE",
+    );
     let violations = check_final_parameters(&source, properties);
 
     let expected = vec![
@@ -454,7 +456,10 @@ fn test_unnamed_parameters_property_false() {
 
     let mut properties = HashMap::new();
     properties.insert("ignoreUnnamedParameters", "false");
-    properties.insert("tokens", "METHOD_DEF,CTOR_DEF,LITERAL_CATCH,FOR_EACH_CLAUSE");
+    properties.insert(
+        "tokens",
+        "METHOD_DEF,CTOR_DEF,LITERAL_CATCH,FOR_EACH_CLAUSE",
+    );
     let violations = check_final_parameters(&source, properties);
 
     let expected = vec![

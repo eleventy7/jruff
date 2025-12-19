@@ -421,9 +421,9 @@ fn test_final_local_variable_switch_assignment() {
 
 #[test]
 fn test_variable_is_assigned_inside_and_outside_switch() {
-    let Some(source) =
-        load_finallocalvariable_fixture("InputFinalLocalVariableAssignedInsideAndOutsideSwitch.java")
-    else {
+    let Some(source) = load_finallocalvariable_fixture(
+        "InputFinalLocalVariableAssignedInsideAndOutsideSwitch.java",
+    ) else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
@@ -852,9 +852,7 @@ fn test_input_final_local_variable_enhanced_for_loop_variable() {
 // Test from checkstyle: InputFinalLocalVariableBreak
 #[test]
 fn test_input_final_local_variable_break() {
-    let Some(source) =
-        load_finallocalvariable_fixture("InputFinalLocalVariableBreak.java")
-    else {
+    let Some(source) = load_finallocalvariable_fixture("InputFinalLocalVariableBreak.java") else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
@@ -916,7 +914,8 @@ fn test_multi_catch_parameters_not_checked() {
 // Test anonymous class creates separate scope
 #[test]
 fn test_anonymous_class_separate_scope() {
-    let Some(source) = load_finallocalvariable_fixture("InputFinalLocalVariableAnonymousClass.java")
+    let Some(source) =
+        load_finallocalvariable_fixture("InputFinalLocalVariableAnonymousClass.java")
     else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
@@ -960,8 +959,9 @@ fn test_constructor_parameters() {
 // Test validateUnnamedVariables = false (default)
 #[test]
 fn test_validate_unnamed_variables_false() {
-    let Some(source) = load_finallocalvariable_fixture("InputFinalLocalVariableValidateUnnamedVariablesFalse.java")
-    else {
+    let Some(source) = load_finallocalvariable_fixture(
+        "InputFinalLocalVariableValidateUnnamedVariablesFalse.java",
+    ) else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
@@ -989,7 +989,8 @@ fn test_validate_unnamed_variables_false() {
 // Test validateUnnamedVariables = true
 #[test]
 fn test_validate_unnamed_variables_true() {
-    let Some(source) = load_finallocalvariable_fixture("InputFinalLocalVariableValidateUnnamedVariablesTrue.java")
+    let Some(source) =
+        load_finallocalvariable_fixture("InputFinalLocalVariableValidateUnnamedVariablesTrue.java")
     else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;

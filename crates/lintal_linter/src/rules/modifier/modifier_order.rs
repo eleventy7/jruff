@@ -186,9 +186,8 @@ impl ModifierOrder {
         }
 
         // Sort keyword modifiers by JLS order
-        keyword_modifiers.sort_by_key(|(text, _)| {
-            super::common::jls_order_index(text).unwrap_or(usize::MAX)
-        });
+        keyword_modifiers
+            .sort_by_key(|(text, _)| super::common::jls_order_index(text).unwrap_or(usize::MAX));
 
         // Build the correctly ordered modifier string
         let mut ordered_parts = Vec::new();
@@ -207,10 +206,7 @@ impl ModifierOrder {
             format!("{} ", ordered_text)
         };
 
-        Fix::safe_edit(Edit::range_replacement(
-            replacement,
-            modifiers_node.range(),
-        ))
+        Fix::safe_edit(Edit::range_replacement(replacement, modifiers_node.range()))
     }
 
     /// Skip all annotations in modifier block.

@@ -233,8 +233,7 @@ fn test_modifier_order_sealed_and_non_sealed() {
 
 #[test]
 fn test_skip_type_annotations_one() {
-    let Some(source) =
-        load_modifierorder_fixture("InputModifierOrderTypeAnnotationsOne.java")
+    let Some(source) = load_modifierorder_fixture("InputModifierOrderTypeAnnotationsOne.java")
     else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
@@ -256,8 +255,7 @@ fn test_skip_type_annotations_one() {
 
 #[test]
 fn test_annotation_on_annotation_declaration() {
-    let Some(source) =
-        load_modifierorder_fixture("InputModifierOrderAnnotationDeclaration.java")
+    let Some(source) = load_modifierorder_fixture("InputModifierOrderAnnotationDeclaration.java")
     else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;

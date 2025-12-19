@@ -102,9 +102,7 @@ impl RedundantModifier {
     fn check_interface_modifiers(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers {
             // Interfaces/annotations are implicitly abstract
@@ -131,9 +129,7 @@ impl RedundantModifier {
         }
 
         // Find modifiers - it's the first child with kind "modifiers"
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers {
             // Interface/annotation fields are implicitly public, static, and final
@@ -156,9 +152,7 @@ impl RedundantModifier {
         let mut diagnostics = vec![];
 
         // Find modifiers - it's the first child with kind "modifiers"
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         // Check if the method is in an interface or annotation
         if self.is_in_interface_or_annotation(node) {
@@ -203,10 +197,8 @@ impl RedundantModifier {
             // 2. Final on method in final class
             // 3. Final on method in anonymous class
             // 4. Final on static method in enum (static methods cannot be overridden)
-            let is_final_redundant = has_private
-                || in_final_class
-                || in_anonymous_class
-                || (in_enum && has_static);
+            let is_final_redundant =
+                has_private || in_final_class || in_anonymous_class || (in_enum && has_static);
 
             if is_final_redundant {
                 diagnostics.push(self.create_diagnostic(ctx, &final_mod, "final"));
@@ -225,9 +217,7 @@ impl RedundantModifier {
             return diagnostics;
         }
 
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers {
             // Classes inside interfaces are implicitly public and static
@@ -250,15 +240,11 @@ impl RedundantModifier {
         // Check if the enum is inside an interface/annotation or nested in another class
         let is_nested = self.is_nested(node);
 
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers {
             // Nested enums are implicitly static
-            if is_nested
-                && let Some(static_mod) = self.find_modifier(&modifiers, "static")
-            {
+            if is_nested && let Some(static_mod) = self.find_modifier(&modifiers, "static") {
                 diagnostics.push(self.create_diagnostic(ctx, &static_mod, "static"));
             }
 
@@ -277,9 +263,7 @@ impl RedundantModifier {
     fn check_constructor_modifiers(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers {
             // Check if constructor is in an enum - all visibility modifiers are redundant
@@ -304,7 +288,11 @@ impl RedundantModifier {
     }
 
     /// Find a modifier by name in a modifiers node.
-    fn find_modifier<'a>(&self, modifiers: &CstNode<'a>, modifier_name: &str) -> Option<CstNode<'a>> {
+    fn find_modifier<'a>(
+        &self,
+        modifiers: &CstNode<'a>,
+        modifier_name: &str,
+    ) -> Option<CstNode<'a>> {
         modifiers
             .children()
             .find(|child| child.kind() == modifier_name)
@@ -528,7 +516,9 @@ impl RedundantModifier {
         let mut diagnostics = vec![];
 
         // Task 10: Check for unnamed lambda parameters in JDK 22+
-        if self.jdk_version >= 22 && self.is_in_lambda(node) && self.is_unnamed_variable(node)
+        if self.jdk_version >= 22
+            && self.is_in_lambda(node)
+            && self.is_unnamed_variable(node)
             && let Some(modifiers) = node.children().find(|c| c.kind() == "modifiers")
             && let Some(final_mod) = self.find_modifier(&modifiers, "final")
         {
@@ -542,18 +532,19 @@ impl RedundantModifier {
             let is_interface_method = self.is_in_interface_or_annotation(&method);
 
             // Check if it's an abstract method
-            let is_abstract = if let Some(modifiers) = method.children().find(|c| c.kind() == "modifiers") {
-                self.find_modifier(&modifiers, "abstract").is_some() ||
-                self.find_modifier(&modifiers, "native").is_some()
-            } else {
-                false
-            };
+            let is_abstract =
+                if let Some(modifiers) = method.children().find(|c| c.kind() == "modifiers") {
+                    self.find_modifier(&modifiers, "abstract").is_some()
+                        || self.find_modifier(&modifiers, "native").is_some()
+                } else {
+                    false
+                };
 
             // For interface methods, check if they have default or static (which means they have body)
             let has_body = if is_interface_method {
                 if let Some(modifiers) = method.children().find(|c| c.kind() == "modifiers") {
-                    self.find_modifier(&modifiers, "default").is_some() ||
-                    self.find_modifier(&modifiers, "static").is_some()
+                    self.find_modifier(&modifiers, "default").is_some()
+                        || self.find_modifier(&modifiers, "static").is_some()
                 } else {
                     false
                 }
@@ -626,9 +617,7 @@ impl RedundantModifier {
     fn check_record_modifiers(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers {
             // Records are implicitly final
@@ -675,9 +664,7 @@ impl RedundantModifier {
             return diagnostics;
         }
 
-        let modifiers = node
-            .children()
-            .find(|child| child.kind() == "modifiers");
+        let modifiers = node.children().find(|child| child.kind() == "modifiers");
 
         if let Some(modifiers) = modifiers
             && let Some(strictfp_mod) = self.find_modifier(&modifiers, "strictfp")
@@ -690,7 +677,11 @@ impl RedundantModifier {
 
     /// Check for redundant final modifier on local variable declarations.
     /// In JDK 22+, final on unnamed variables (_) is redundant.
-    fn check_local_variable_modifiers(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
+    fn check_local_variable_modifiers(
+        &self,
+        ctx: &CheckContext,
+        node: &CstNode,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
         // Only check in JDK 22+
@@ -730,9 +721,9 @@ impl RedundantModifier {
         }
 
         // Check if the pattern variable is named "_"
-        let has_underscore = node.children().any(|c| {
-            c.kind() == "identifier" && c.text().trim() == "_"
-        });
+        let has_underscore = node
+            .children()
+            .any(|c| c.kind() == "identifier" && c.text().trim() == "_");
 
         if has_underscore {
             // Find the final modifier node
@@ -746,7 +737,11 @@ impl RedundantModifier {
 
     /// Check for redundant final modifier on catch parameters.
     /// In JDK 22+, final on unnamed catch parameters (_) is redundant.
-    fn check_catch_parameter_modifiers(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
+    fn check_catch_parameter_modifiers(
+        &self,
+        ctx: &CheckContext,
+        node: &CstNode,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
         // Only check in JDK 22+
@@ -780,9 +775,9 @@ impl RedundantModifier {
         }
 
         // Check if there's an ERROR or identifier node with text "_" (tree-sitter limitation)
-        let has_underscore = node.children().any(|c| {
-            (c.kind() == "ERROR" || c.kind() == "identifier") && c.text().trim() == "_"
-        });
+        let has_underscore = node
+            .children()
+            .any(|c| (c.kind() == "ERROR" || c.kind() == "identifier") && c.text().trim() == "_");
 
         if !has_underscore {
             return diagnostics;
@@ -880,10 +875,12 @@ mod tests {
         let source = "interface Foo { public void test(); }";
         let diagnostics = check_source(source, None);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'public' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'public' modifier")
+        );
     }
 
     #[test]
@@ -891,10 +888,12 @@ mod tests {
         let source = "interface Foo { abstract void test(); }";
         let diagnostics = check_source(source, None);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'abstract' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'abstract' modifier")
+        );
     }
 
     #[test]
@@ -923,10 +922,12 @@ mod tests {
         let source = "interface Foo { static class Bar {} }";
         let diagnostics = check_source(source, None);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'static' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'static' modifier")
+        );
     }
 
     #[test]
@@ -934,10 +935,12 @@ mod tests {
         let source = "interface Foo { public class Bar {} }";
         let diagnostics = check_source(source, None);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'public' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'public' modifier")
+        );
     }
 
     #[test]
@@ -953,10 +956,12 @@ mod tests {
         let source = "interface Foo { static enum Bar { A, B } }";
         let diagnostics = check_source(source, None);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'static' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'static' modifier")
+        );
     }
 
     #[test]
@@ -965,14 +970,18 @@ mod tests {
         let diagnostics = check_source(source, None);
         // Should find 2 violations: public on field and public on method
         assert_eq!(diagnostics.len(), 2);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'public' modifier"));
-        assert!(diagnostics[1]
-            .kind
-            .body
-            .contains("Redundant 'public' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'public' modifier")
+        );
+        assert!(
+            diagnostics[1]
+                .kind
+                .body
+                .contains("Redundant 'public' modifier")
+        );
     }
 
     #[test]
@@ -980,7 +989,11 @@ mod tests {
         let source = "class Test { @SafeVarargs private final void foo(int... k) {} }";
         let diagnostics = check_source(source, None);
         // @SafeVarargs methods should allow final modifier
-        assert_eq!(diagnostics.len(), 0, "Expected 0 violations for @SafeVarargs method");
+        assert_eq!(
+            diagnostics.len(),
+            0,
+            "Expected 0 violations for @SafeVarargs method"
+        );
     }
 
     #[test]
@@ -989,10 +1002,12 @@ mod tests {
         let diagnostics = check_source(source, None);
         // Without @SafeVarargs, final on private method is redundant
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'final' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'final' modifier")
+        );
     }
 
     #[test]
@@ -1001,10 +1016,12 @@ mod tests {
         let diagnostics = check_source(source, None);
         // Should find static modifier on nested record as redundant
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'static' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'static' modifier")
+        );
     }
 
     #[test]
@@ -1013,10 +1030,12 @@ mod tests {
         let diagnostics = check_source(source, Some(17));
         // strictfp is redundant in JDK 17+
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'strictfp' modifier"));
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'strictfp' modifier")
+        );
     }
 
     #[test]
@@ -1037,11 +1056,17 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source, Some(22));
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for unnamed local variable");
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'final' modifier"));
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for unnamed local variable"
+        );
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'final' modifier")
+        );
     }
 
     #[test]
@@ -1054,11 +1079,17 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source, Some(22));
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for unnamed pattern variable");
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'final' modifier"));
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for unnamed pattern variable"
+        );
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'final' modifier")
+        );
     }
 
     #[test]
@@ -1073,11 +1104,17 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source, Some(22));
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for unnamed catch parameter");
-        assert!(diagnostics[0]
-            .kind
-            .body
-            .contains("Redundant 'final' modifier"));
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for unnamed catch parameter"
+        );
+        assert!(
+            diagnostics[0]
+                .kind
+                .body
+                .contains("Redundant 'final' modifier")
+        );
     }
 
     #[test]
@@ -1093,12 +1130,13 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source, Some(22));
-        assert_eq!(diagnostics.len(), 2, "Expected 2 violations for unnamed lambda parameters");
+        assert_eq!(
+            diagnostics.len(),
+            2,
+            "Expected 2 violations for unnamed lambda parameters"
+        );
         for diagnostic in diagnostics {
-            assert!(diagnostic
-                .kind
-                .body
-                .contains("Redundant 'final' modifier"));
+            assert!(diagnostic.kind.body.contains("Redundant 'final' modifier"));
         }
     }
 }

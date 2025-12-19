@@ -229,8 +229,12 @@ impl FinalParameters {
                         has_final = true;
                     }
                 }
-                "type_identifier" | "generic_type" | "array_type" | "integral_type"
-                | "floating_point_type" | "boolean_type" => {
+                "type_identifier"
+                | "generic_type"
+                | "array_type"
+                | "integral_type"
+                | "floating_point_type"
+                | "boolean_type" => {
                     if first_reportable_node.is_none() {
                         first_reportable_node = Some(child);
                     }
@@ -283,17 +287,19 @@ impl FinalParameters {
             .or_else(|| type_node.map(|t| t.range().start()))
             .unwrap_or_else(|| first_leaf.range().start());
 
-        vec![Diagnostic::new(
-            ParameterShouldBeFinal {
-                param_name: param_name.to_string(),
-                column: Self::get_column(ctx, &first_leaf),
-            },
-            first_leaf.range(),
-        )
-        .with_fix(Fix::safe_edit(Edit::insertion(
-            "final ".to_string(),
-            insert_position,
-        )))]
+        vec![
+            Diagnostic::new(
+                ParameterShouldBeFinal {
+                    param_name: param_name.to_string(),
+                    column: Self::get_column(ctx, &first_leaf),
+                },
+                first_leaf.range(),
+            )
+            .with_fix(Fix::safe_edit(Edit::insertion(
+                "final ".to_string(),
+                insert_position,
+            ))),
+        ]
     }
 
     /// Check if a parameter should have final modifier.
@@ -344,7 +350,11 @@ impl FinalParameters {
             .children()
             .find(|child| child.kind() == "modifiers")
             .map(|modifiers| modifiers.range().end())
-            .or_else(|| param.child_by_field_name("type").map(|type_node| type_node.range().start()))
+            .or_else(|| {
+                param
+                    .child_by_field_name("type")
+                    .map(|type_node| type_node.range().start())
+            })
             .unwrap_or_else(|| first_node.range().start());
 
         Some(

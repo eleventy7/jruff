@@ -4,9 +4,20 @@ use lintal_java_cst::CstNode;
 
 /// JLS-recommended modifier order.
 pub const JLS_MODIFIER_ORDER: &[&str] = &[
-    "public", "protected", "private", "abstract", "default", "static",
-    "sealed", "non-sealed", "final", "transient", "volatile",
-    "synchronized", "native", "strictfp",
+    "public",
+    "protected",
+    "private",
+    "abstract",
+    "default",
+    "static",
+    "sealed",
+    "non-sealed",
+    "final",
+    "transient",
+    "volatile",
+    "synchronized",
+    "native",
+    "strictfp",
 ];
 
 /// Get the index of a modifier in JLS order, or None if not found.
@@ -16,7 +27,9 @@ pub fn jls_order_index(modifier: &str) -> Option<usize> {
 
 /// Check if a modifiers node contains a specific modifier.
 pub fn has_modifier(modifiers: &CstNode, modifier_kind: &str) -> bool {
-    modifiers.children().any(|child| child.kind() == modifier_kind)
+    modifiers
+        .children()
+        .any(|child| child.kind() == modifier_kind)
 }
 
 /// Check if we're inside an interface definition.

@@ -93,3 +93,7 @@ jobs:
           cargo test --package lintal_linter --test checkstyle_emptyblock
           cargo test --package lintal_linter --test checkstyle_emptycatchblock
           cargo test --package lintal_linter --test checkstyle_avoidnestedblocks
+          cargo test --package lintal_linter --test checkstyle_modifierorder
+          cargo test --package lintal_linter --test checkstyle_finalparameters
+          cargo test --package lintal_linter --test checkstyle_redundantmodifier
+          cargo test --package lintal_linter --test checkstyle_finallocalvariable

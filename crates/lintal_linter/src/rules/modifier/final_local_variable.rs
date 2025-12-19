@@ -517,9 +517,7 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             }
 
             // If no final modifier, check if the loop variable is reassigned in the body
-            if !has_final
-                && let Some(name_node) = node.child_by_field_name("name")
-            {
+            if !has_final && let Some(name_node) = node.child_by_field_name("name") {
                 let var_name = &self.ctx.source()[name_node.range()];
 
                 // Skip unnamed variables if configured
@@ -640,9 +638,10 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             // Detect what was assigned in the consequence
             if let Some(scope) = self.scopes.last() {
                 for (name, var) in &scope.variables {
-                    if let Some(&(before_assigned, before_already_assigned)) =
-                        before_if.get(name)
-                        && var.assigned && !before_assigned && !before_already_assigned
+                    if let Some(&(before_assigned, before_already_assigned)) = before_if.get(name)
+                        && var.assigned
+                        && !before_assigned
+                        && !before_already_assigned
                     {
                         consequence_assignments.insert(name.clone());
                     }
@@ -658,9 +657,10 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             // Detect what was assigned in the alternative
             if let Some(scope) = self.scopes.last() {
                 for (name, var) in &scope.variables {
-                    if let Some(&(before_assigned, before_already_assigned)) =
-                        before_if.get(name)
-                        && var.assigned && !before_assigned && !before_already_assigned
+                    if let Some(&(before_assigned, before_already_assigned)) = before_if.get(name)
+                        && var.assigned
+                        && !before_assigned
+                        && !before_already_assigned
                     {
                         alternative_assignments.insert(name.clone());
                     }
@@ -747,9 +747,9 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                 .collect()
         };
 
-
         // Process the condition/value
-        if let Some(condition) = node.child_by_field_name("condition")
+        if let Some(condition) = node
+            .child_by_field_name("condition")
             .or_else(|| node.child_by_field_name("value"))
         {
             self.visit(&condition);

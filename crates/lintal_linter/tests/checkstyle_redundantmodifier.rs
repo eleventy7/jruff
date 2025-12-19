@@ -82,7 +82,9 @@ fn check_redundant_modifier(source: &str, jdk_version: Option<&str>) -> Vec<Viol
 fn load_redundantmodifier_fixture(file_name: &str) -> Option<String> {
     let checkstyle_root = checkstyle_repo::checkstyle_repo()?;
     let path = checkstyle_root
-        .join("src/test/resources/com/puppycrawl/tools/checkstyle/checks/modifier/redundantmodifier")
+        .join(
+            "src/test/resources/com/puppycrawl/tools/checkstyle/checks/modifier/redundantmodifier",
+        )
         .join(file_name);
     std::fs::read_to_string(&path).ok()
 }
@@ -93,9 +95,9 @@ fn verify_violations(violations: &[Violation], expected: &[Violation]) {
     let mut unexpected = vec![];
 
     for exp in expected {
-        let matched = violations.iter().any(|v| {
-            v.line == exp.line && v.column == exp.column && v.modifier == exp.modifier
-        });
+        let matched = violations
+            .iter()
+            .any(|v| v.line == exp.line && v.column == exp.column && v.modifier == exp.modifier);
 
         if !matched {
             missing.push(exp.clone());
@@ -103,9 +105,9 @@ fn verify_violations(violations: &[Violation], expected: &[Violation]) {
     }
 
     for v in violations {
-        let matched = expected.iter().any(|exp| {
-            v.line == exp.line && v.column == exp.column && v.modifier == exp.modifier
-        });
+        let matched = expected
+            .iter()
+            .any(|exp| v.line == exp.line && v.column == exp.column && v.modifier == exp.modifier);
 
         if !matched {
             unexpected.push(v.clone());
@@ -232,9 +234,9 @@ fn test_annotation_on_enum_constructor() {
 
 #[test]
 fn test_not_public_class_constructor_has_not_public_modifier() {
-    let Some(source) = load_redundantmodifier_fixture(
-        "InputRedundantModifierPublicModifierInNotPublicClass.java",
-    ) else {
+    let Some(source) =
+        load_redundantmodifier_fixture("InputRedundantModifierPublicModifierInNotPublicClass.java")
+    else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
@@ -404,9 +406,7 @@ fn test_final_in_abstract_methods() {
 
 #[test]
 fn test_records() {
-    let Some(source) =
-        load_redundantmodifier_fixture("InputRedundantModifierRecords.java")
-    else {
+    let Some(source) = load_redundantmodifier_fixture("InputRedundantModifierRecords.java") else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
@@ -419,18 +419,18 @@ fn test_records() {
     // tree-sitter-java doesn't properly parse record declarations inside annotations.
     // This is a known limitation of the parser.
     let expected = vec![
-        Violation::new(12, 5, "static"),   // static record in class
-        Violation::new(16, 9, "final"),    // final record in interface
-        Violation::new(16, 15, "static"),  // static record in interface
-        Violation::new(21, 9, "static"),   // static record in nested class
-        Violation::new(27, 9, "final"),    // final record in enum
-        Violation::new(27, 15, "static"),  // static record in enum
-        Violation::new(32, 13, "static"),  // static record in nested class in enum
-        Violation::new(38, 1, "final"),    // final top-level record
-        Violation::new(40, 5, "final"),    // final nested record in record
-        Violation::new(43, 5, "static"),   // static nested record in record
-        // Violation::new(47, 9, "final"),    // SKIPPED: record in annotation (parser limitation)
-        // Violation::new(47, 15, "static"),  // SKIPPED: record in annotation (parser limitation)
+        Violation::new(12, 5, "static"),  // static record in class
+        Violation::new(16, 9, "final"),   // final record in interface
+        Violation::new(16, 15, "static"), // static record in interface
+        Violation::new(21, 9, "static"),  // static record in nested class
+        Violation::new(27, 9, "final"),   // final record in enum
+        Violation::new(27, 15, "static"), // static record in enum
+        Violation::new(32, 13, "static"), // static record in nested class in enum
+        Violation::new(38, 1, "final"),   // final top-level record
+        Violation::new(40, 5, "final"),   // final nested record in record
+        Violation::new(43, 5, "static"),  // static nested record in record
+                                          // Violation::new(47, 9, "final"),    // SKIPPED: record in annotation (parser limitation)
+                                          // Violation::new(47, 15, "static"),  // SKIPPED: record in annotation (parser limitation)
     ];
 
     verify_violations(&violations, &expected);
@@ -532,9 +532,9 @@ fn test_final_unnamed_variables_with_default_version() {
 
 #[test]
 fn test_final_unnamed_variables_with_old_version() {
-    let Some(source) =
-        load_redundantmodifier_fixture("InputRedundantModifierFinalUnnamedVariablesWithOldVersion.java")
-    else {
+    let Some(source) = load_redundantmodifier_fixture(
+        "InputRedundantModifierFinalUnnamedVariablesWithOldVersion.java",
+    ) else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
