@@ -3,7 +3,7 @@
 //! Checks that parameters for methods, constructors, catch and for-each blocks are final.
 //! This is a port of the checkstyle FinalParametersCheck for 100% compatibility.
 
-use lintal_diagnostics::{Diagnostic, FixAvailability, Violation};
+use lintal_diagnostics::{Diagnostic, Edit, Fix, FixAvailability, Violation};
 use lintal_java_cst::CstNode;
 use std::collections::HashSet;
 
@@ -106,7 +106,7 @@ pub struct ParameterShouldBeFinal {
 }
 
 impl Violation for ParameterShouldBeFinal {
-    const FIX_AVAILABILITY: FixAvailability = FixAvailability::None;
+    const FIX_AVAILABILITY: FixAvailability = FixAvailability::Always;
 
     fn message(&self) -> String {
         format!("Parameter {} should be final.", self.param_name)
@@ -274,13 +274,26 @@ impl FinalParameters {
         let first_node = first_reportable_node.unwrap_or(name_node);
         let first_leaf = self.get_first_leaf_node(&first_node);
 
+        // Calculate where to insert "final "
+        // Look for existing modifiers or insert before the type
+        let insert_position = for_each
+            .children()
+            .find(|child| child.kind() == "modifiers")
+            .map(|modifiers| modifiers.range().end())
+            .or_else(|| type_node.map(|t| t.range().start()))
+            .unwrap_or_else(|| first_leaf.range().start());
+
         vec![Diagnostic::new(
             ParameterShouldBeFinal {
                 param_name: param_name.to_string(),
                 column: Self::get_column(ctx, &first_leaf),
             },
             first_leaf.range(),
-        )]
+        )
+        .with_fix(Fix::safe_edit(Edit::insertion(
+            "final ".to_string(),
+            insert_position,
+        )))]
     }
 
     /// Check if a parameter should have final modifier.
@@ -324,13 +337,29 @@ impl FinalParameters {
         // which typically is the type or first annotation
         let first_node = self.get_first_leaf_node(param);
 
-        Some(Diagnostic::new(
-            ParameterShouldBeFinal {
-                param_name: param_name.to_string(),
-                column: Self::get_column(ctx, &first_node),
-            },
-            first_node.range(),
-        ))
+        // Calculate where to insert "final "
+        // If there's a modifiers node, insert at the end of it
+        // Otherwise, insert before the type
+        let insert_position = param
+            .children()
+            .find(|child| child.kind() == "modifiers")
+            .map(|modifiers| modifiers.range().end())
+            .or_else(|| param.child_by_field_name("type").map(|type_node| type_node.range().start()))
+            .unwrap_or_else(|| first_node.range().start());
+
+        Some(
+            Diagnostic::new(
+                ParameterShouldBeFinal {
+                    param_name: param_name.to_string(),
+                    column: Self::get_column(ctx, &first_node),
+                },
+                first_node.range(),
+            )
+            .with_fix(Fix::safe_edit(Edit::insertion(
+                "final ".to_string(),
+                insert_position,
+            ))),
+        )
     }
 
     /// Check if modifiers contain final.

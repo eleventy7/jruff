@@ -3,7 +3,7 @@
 //! This is a complex stateful rule that tracks variable declarations and assignments.
 
 use crate::{CheckContext, FromConfig, Rule};
-use lintal_diagnostics::{Diagnostic, FixAvailability, Violation};
+use lintal_diagnostics::{Diagnostic, Edit, Fix, FixAvailability, Violation};
 use lintal_java_cst::CstNode;
 use lintal_text_size::TextRange;
 use std::collections::{HashMap, HashSet};
@@ -21,7 +21,7 @@ pub struct VariableShouldBeFinal {
 }
 
 impl Violation for VariableShouldBeFinal {
-    const FIX_AVAILABILITY: FixAvailability = FixAvailability::None;
+    const FIX_AVAILABILITY: FixAvailability = FixAvailability::Always;
 
     fn message(&self) -> String {
         format!("Variable '{}' should be declared final.", self.var_name)
@@ -62,6 +62,8 @@ struct VariableCandidate {
     assigned: bool,
     /// Whether this variable has been assigned more than once
     already_assigned: bool,
+    /// The position to insert "final " (before the type in the declaration)
+    insert_position: lintal_text_size::TextSize,
 }
 
 /// Data for a single scope (method, constructor, block, etc.)
@@ -79,7 +81,13 @@ impl ScopeData {
     }
 
     /// Add a variable declaration to this scope.
-    fn add_variable(&mut self, name: String, ident_range: TextRange, has_initializer: bool) {
+    fn add_variable(
+        &mut self,
+        name: String,
+        ident_range: TextRange,
+        has_initializer: bool,
+        insert_position: lintal_text_size::TextSize,
+    ) {
         self.variables.insert(
             name.clone(),
             VariableCandidate {
@@ -88,6 +96,7 @@ impl ScopeData {
                 has_initializer,
                 assigned: false,
                 already_assigned: false,
+                insert_position,
             },
         );
     }
@@ -154,7 +163,11 @@ impl<'a> FinalLocalVariableVisitor<'a> {
     fn pop_scope(&mut self) {
         if let Some(scope) = self.scopes.pop() {
             for candidate in scope.get_should_be_final() {
-                self.report_violation(candidate.ident_range, &candidate.name);
+                self.report_violation(
+                    candidate.ident_range,
+                    &candidate.name,
+                    candidate.insert_position,
+                );
             }
         }
     }
@@ -165,13 +178,22 @@ impl<'a> FinalLocalVariableVisitor<'a> {
     }
 
     /// Report a violation for a variable that should be final.
-    fn report_violation(&mut self, ident_range: TextRange, var_name: &str) {
+    fn report_violation(
+        &mut self,
+        ident_range: TextRange,
+        var_name: &str,
+        insert_position: lintal_text_size::TextSize,
+    ) {
         let diagnostic = Diagnostic::new(
             VariableShouldBeFinal {
                 var_name: var_name.to_string(),
             },
             ident_range,
-        );
+        )
+        .with_fix(Fix::safe_edit(Edit::insertion(
+            "final ".to_string(),
+            insert_position,
+        )));
         self.diagnostics.push(diagnostic);
     }
 
@@ -280,6 +302,31 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             }
         }
 
+        // Calculate insert position for "final "
+        // If there's a modifiers node, insert after it; otherwise before the type
+        let insert_position = node
+            .children()
+            .find(|child| child.kind() == "modifiers")
+            .map(|modifiers| modifiers.range().end())
+            .or_else(|| {
+                // Find the type node (various type kinds)
+                node.children()
+                    .find(|child| {
+                        matches!(
+                            child.kind(),
+                            "type_identifier"
+                                | "generic_type"
+                                | "array_type"
+                                | "integral_type"
+                                | "floating_point_type"
+                                | "boolean_type"
+                                | "void_type"
+                        )
+                    })
+                    .map(|type_node| type_node.range().start())
+            })
+            .unwrap_or_else(|| node.range().start());
+
         // Find all variable declarators
         for child in node.children() {
             if child.kind() == "variable_declarator"
@@ -297,7 +344,12 @@ impl<'a> FinalLocalVariableVisitor<'a> {
 
                 // Add to current scope
                 if let Some(scope) = self.current_scope() {
-                    scope.add_variable(var_name.to_string(), name_node.range(), has_initializer);
+                    scope.add_variable(
+                        var_name.to_string(),
+                        name_node.range(),
+                        has_initializer,
+                        insert_position,
+                    );
                 }
             }
         }
@@ -482,7 +534,31 @@ impl<'a> FinalLocalVariableVisitor<'a> {
 
                     // If not assigned in body, it should be final
                     if !assigned_in_body {
-                        self.report_violation(name_node.range(), var_name);
+                        // Calculate insert position for "final "
+                        // If there's a modifiers node, insert after it; otherwise before the type
+                        let insert_position = node
+                            .children()
+                            .find(|child| child.kind() == "modifiers")
+                            .map(|modifiers| modifiers.range().end())
+                            .or_else(|| {
+                                // Find the type node
+                                node.children()
+                                    .find(|child| {
+                                        matches!(
+                                            child.kind(),
+                                            "type_identifier"
+                                                | "generic_type"
+                                                | "array_type"
+                                                | "integral_type"
+                                                | "floating_point_type"
+                                                | "boolean_type"
+                                        )
+                                    })
+                                    .map(|type_node| type_node.range().start())
+                            })
+                            .unwrap_or_else(|| node.range().start());
+
+                        self.report_violation(name_node.range(), var_name, insert_position);
                     }
                 }
             }

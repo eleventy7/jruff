@@ -3,7 +3,7 @@
 //! Checks that the order of modifiers conforms to the JLS suggestions.
 //! This is a port of the checkstyle ModifierOrderCheck for 100% compatibility.
 
-use lintal_diagnostics::{Diagnostic, FixAvailability, Violation};
+use lintal_diagnostics::{Diagnostic, Edit, Fix, FixAvailability, Violation};
 use lintal_java_cst::CstNode;
 
 use crate::{CheckContext, FromConfig, Properties, Rule};
@@ -34,7 +34,7 @@ pub struct ModifierOutOfOrder {
 }
 
 impl Violation for ModifierOutOfOrder {
-    const FIX_AVAILABILITY: FixAvailability = FixAvailability::None;
+    const FIX_AVAILABILITY: FixAvailability = FixAvailability::Always;
 
     fn message(&self) -> String {
         format!(
@@ -52,7 +52,7 @@ pub struct AnnotationMustPrecedeModifiers {
 }
 
 impl Violation for AnnotationMustPrecedeModifiers {
-    const FIX_AVAILABILITY: FixAvailability = FixAvailability::None;
+    const FIX_AVAILABILITY: FixAvailability = FixAvailability::Always;
 
     fn message(&self) -> String {
         format!(
@@ -82,7 +82,7 @@ impl Rule for ModifierOrder {
         }
 
         // Check order according to checkstyle's algorithm
-        if let Some(error) = self.check_order_suggested_by_jls(&mods, ctx) {
+        if let Some(error) = self.check_order_suggested_by_jls(&mods, ctx, node) {
             diagnostics.push(error);
         }
 
@@ -97,6 +97,7 @@ impl ModifierOrder {
         &self,
         modifiers: &[CstNode],
         ctx: &CheckContext,
+        modifiers_node: &CstNode,
     ) -> Option<Diagnostic> {
         let mut iter = modifiers.iter();
 
@@ -116,13 +117,17 @@ impl ModifierOrder {
                 if !self.is_annotation_on_type(&modifier) {
                     // Annotation not at start of modifiers, bad
                     let annotation_text = self.get_annotation_text(&modifier, ctx);
-                    return Some(Diagnostic::new(
-                        AnnotationMustPrecedeModifiers {
-                            annotation: annotation_text,
-                            column: Self::get_column(ctx, &modifier),
-                        },
-                        modifier.range(),
-                    ));
+                    let fix = self.create_reorder_fix(ctx, modifiers_node);
+                    return Some(
+                        Diagnostic::new(
+                            AnnotationMustPrecedeModifiers {
+                                annotation: annotation_text,
+                                column: Self::get_column(ctx, &modifier),
+                            },
+                            modifier.range(),
+                        )
+                        .with_fix(fix),
+                    );
                 }
                 break;
             }
@@ -140,13 +145,17 @@ impl ModifierOrder {
 
             if current_index == super::common::JLS_MODIFIER_ORDER.len() {
                 // Current modifier is out of JLS order
-                return Some(Diagnostic::new(
-                    ModifierOutOfOrder {
-                        modifier: modifier_text.to_string(),
-                        column: Self::get_column(ctx, &modifier),
-                    },
-                    modifier.range(),
-                ));
+                let fix = self.create_reorder_fix(ctx, modifiers_node);
+                return Some(
+                    Diagnostic::new(
+                        ModifierOutOfOrder {
+                            modifier: modifier_text.to_string(),
+                            column: Self::get_column(ctx, &modifier),
+                        },
+                        modifier.range(),
+                    )
+                    .with_fix(fix),
+                );
             }
 
             // Move to next modifier
@@ -157,6 +166,51 @@ impl ModifierOrder {
         }
 
         None
+    }
+
+    /// Create a fix that reorders modifiers to match JLS order.
+    fn create_reorder_fix(&self, ctx: &CheckContext, modifiers_node: &CstNode) -> Fix {
+        let source = ctx.source();
+
+        // Collect all modifiers with their text and ranges
+        let mut annotations = Vec::new();
+        let mut keyword_modifiers = Vec::new();
+
+        for child in modifiers_node.children() {
+            let text = &source[child.range()];
+            if Self::is_annotation(&child) {
+                annotations.push((text.to_string(), child));
+            } else {
+                keyword_modifiers.push((text.to_string(), child));
+            }
+        }
+
+        // Sort keyword modifiers by JLS order
+        keyword_modifiers.sort_by_key(|(text, _)| {
+            super::common::jls_order_index(text).unwrap_or(usize::MAX)
+        });
+
+        // Build the correctly ordered modifier string
+        let mut ordered_parts = Vec::new();
+        for (text, _) in &annotations {
+            ordered_parts.push(text.clone());
+        }
+        for (text, _) in &keyword_modifiers {
+            ordered_parts.push(text.clone());
+        }
+        let ordered_text = ordered_parts.join(" ");
+
+        // Add trailing space if needed (to maintain spacing with what follows)
+        let replacement = if ordered_text.is_empty() {
+            ordered_text
+        } else {
+            format!("{} ", ordered_text)
+        };
+
+        Fix::safe_edit(Edit::range_replacement(
+            replacement,
+            modifiers_node.range(),
+        ))
     }
 
     /// Skip all annotations in modifier block.

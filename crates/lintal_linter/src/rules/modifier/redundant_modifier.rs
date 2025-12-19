@@ -3,8 +3,9 @@
 //! Checks for redundant modifiers in various contexts.
 //! This is a port of the checkstyle RedundantModifierCheck for 100% compatibility.
 
-use lintal_diagnostics::{Diagnostic, FixAvailability, Violation};
+use lintal_diagnostics::{Diagnostic, Edit, Fix, FixAvailability, Violation};
 use lintal_java_cst::CstNode;
+use lintal_text_size::TextRange;
 
 use crate::{CheckContext, FromConfig, Properties, Rule};
 
@@ -50,7 +51,7 @@ pub struct RedundantModifierViolation {
 }
 
 impl Violation for RedundantModifierViolation {
-    const FIX_AVAILABILITY: FixAvailability = FixAvailability::None;
+    const FIX_AVAILABILITY: FixAvailability = FixAvailability::Always;
 
     fn message(&self) -> String {
         format!("Redundant '{}' modifier.", self.modifier)
@@ -590,13 +591,35 @@ impl RedundantModifier {
     }
 
     /// Create a diagnostic for a redundant modifier.
-    fn create_diagnostic(&self, _ctx: &CheckContext, node: &CstNode, modifier: &str) -> Diagnostic {
+    fn create_diagnostic(&self, ctx: &CheckContext, node: &CstNode, modifier: &str) -> Diagnostic {
+        // Calculate range to delete: the modifier keyword plus any trailing whitespace
+        let modifier_range = node.range();
+        let source = ctx.source();
+
+        // Find trailing whitespace after the modifier
+        let mut delete_end = modifier_range.end();
+        let source_bytes = source.as_bytes();
+        let start_idx = usize::from(modifier_range.end());
+
+        // Skip whitespace characters after the modifier (but not newlines)
+        for (offset, &byte) in source_bytes[start_idx..].iter().enumerate() {
+            let ch = byte as char;
+            if ch == ' ' || ch == '\t' {
+                delete_end = lintal_text_size::TextSize::new((start_idx + offset + 1) as u32);
+            } else {
+                break;
+            }
+        }
+
+        let delete_range = TextRange::new(modifier_range.start(), delete_end);
+
         Diagnostic::new(
             RedundantModifierViolation {
                 modifier: modifier.to_string(),
             },
             node.range(),
         )
+        .with_fix(Fix::safe_edit(Edit::range_deletion(delete_range)))
     }
 
     /// Check for redundant modifiers on record declarations.
