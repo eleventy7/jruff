@@ -64,6 +64,8 @@ struct VariableCandidate {
     already_assigned: bool,
     /// The position to insert "final " (before the type in the declaration)
     insert_position: lintal_text_size::TextSize,
+    /// Range of the declaration statement (used to group multi-variable declarations)
+    declaration_range: TextRange,
 }
 
 /// Data for a single scope (method, constructor, block, etc.)
@@ -87,6 +89,7 @@ impl ScopeData {
         ident_range: TextRange,
         has_initializer: bool,
         insert_position: lintal_text_size::TextSize,
+        declaration_range: TextRange,
     ) {
         self.variables.insert(
             name.clone(),
@@ -97,6 +100,7 @@ impl ScopeData {
                 assigned: false,
                 already_assigned: false,
                 insert_position,
+                declaration_range,
             },
         );
     }
@@ -115,9 +119,36 @@ impl ScopeData {
 
     /// Get all variables that should be final (never reassigned).
     fn get_should_be_final(&self) -> Vec<&VariableCandidate> {
+        // Collect all variables grouped by declaration range
+        let mut declaration_groups: HashMap<TextRange, Vec<&VariableCandidate>> = HashMap::new();
+        for v in self.variables.values() {
+            declaration_groups
+                .entry(v.declaration_range)
+                .or_default()
+                .push(v);
+        }
+
+        // Find declarations that have multiple variables AND at least one is modified.
+        // We can't make individual variables final if they share a declaration with a
+        // modified variable (e.g., "for (int i = 0, size = n; i < size; i++)" - can't
+        // make just 'size' final because 'i' is modified).
+        let tainted_declarations: HashSet<TextRange> = declaration_groups
+            .iter()
+            .filter(|(_, vars)| {
+                // Only taint if there are multiple variables and at least one is modified
+                vars.len() > 1 && vars.iter().any(|v| v.already_assigned || v.assigned)
+            })
+            .map(|(range, _)| *range)
+            .collect();
+
         self.variables
             .values()
             .filter(|v| {
+                // Skip if this variable's declaration is tainted (multi-var with modified)
+                if tainted_declarations.contains(&v.declaration_range) {
+                    return false;
+                }
+
                 if v.already_assigned {
                     // Assigned more than once, never a candidate
                     false
@@ -289,6 +320,14 @@ impl<'a> FinalLocalVariableVisitor<'a> {
 
     /// Process a variable declaration.
     fn process_variable_declaration(&mut self, node: &CstNode) {
+        // Skip variables declared in for-loop initializers (checkstyle does the same)
+        // These are scoped to the loop and making them final is not typically useful
+        if let Some(parent) = node.parent()
+            && parent.kind() == "for_statement"
+        {
+            return;
+        }
+
         // Check if already has final modifier
         // Note: modifiers might not be a field, check children
         for child in node.children() {
@@ -349,6 +388,7 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                         name_node.range(),
                         has_initializer,
                         insert_position,
+                        node.range(),
                     );
                 }
             }
@@ -467,6 +507,16 @@ impl<'a> FinalLocalVariableVisitor<'a> {
         {
             for var_name in &variables_before_loop {
                 if self.contains_assignment_to(&update, var_name) {
+                    assigned_in_loop.insert(var_name.clone());
+                }
+            }
+        }
+
+        // Also check the condition - it's executed on every iteration
+        // e.g., while ((x = getValue()) > 0) - x is assigned each iteration
+        if let Some(condition) = node.child_by_field_name("condition") {
+            for var_name in &variables_before_loop {
+                if self.contains_assignment_to(&condition, var_name) {
                     assigned_in_loop.insert(var_name.clone());
                 }
             }
@@ -649,6 +699,18 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             }
         }
 
+        // Snapshot state after consequence but before alternative
+        // If already_assigned is true here, it was set during consequence processing
+        // (meaning multiple assignments within the consequence branch)
+        let after_consequence: HashMap<String, (bool, bool)> = {
+            let current_scope = self.scopes.last().unwrap();
+            current_scope
+                .variables
+                .iter()
+                .map(|(name, v)| (name.clone(), (v.assigned, v.already_assigned)))
+                .collect()
+        };
+
         // Process the alternative (else branch) if it exists
         let mut alternative_assignments = HashSet::new();
         let has_alternative = if let Some(alternative) = node.child_by_field_name("alternative") {
@@ -684,11 +746,25 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                         // The normal mark_assigned logic already set assigned=true, we don't
                         // want to mark as already_assigned
                         // However, we need to "undo" the double-assignment marking
+                        // BUT only if the variable wasn't assigned multiple times within a single branch
                         if let Some(var) = scope.variables.get_mut(var_name) {
                             // If the variable was marked as already_assigned due to being
                             // assigned in both branches, we need to reset that since for
-                            // uninitialized variables, this is effectively a single initialization
-                            if var.already_assigned && !var.has_initializer {
+                            // uninitialized variables, this is effectively a single initialization.
+                            // BUT don't reset if it was assigned multiple times within a single branch.
+                            // Check if already_assigned was true after consequence (= multiple in consequence)
+                            let assigned_multiple_in_consequence = after_consequence
+                                .get(var_name)
+                                .map(|(_, aa)| *aa)
+                                .unwrap_or(false)
+                                && !before_if
+                                    .get(var_name)
+                                    .map(|(_, aa)| *aa)
+                                    .unwrap_or(false);
+                            if var.already_assigned
+                                && !var.has_initializer
+                                && !assigned_multiple_in_consequence
+                            {
                                 var.already_assigned = false;
                                 var.assigned = true;
                             }

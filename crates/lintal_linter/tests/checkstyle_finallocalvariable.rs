@@ -639,7 +639,8 @@ public class Test {
         for (int j = 0; j < 10; j++) {
         }
 
-        // Should report: loop variable never modified
+        // Should NOT report: checkstyle skips ALL for-init variables
+        // (even if they're never modified, like 'k' here)
         for (int k = 0; k < 10; ) {
         }
     }
@@ -649,8 +650,8 @@ public class Test {
     let properties = HashMap::new();
     let violations = check_final_local_variable(source, properties);
 
-    // Should report 'k' at line 15 (loop variable never modified)
-    let expected = vec![Violation::new(15, 18)];
+    // Checkstyle skips all variables declared in for-loop initializers
+    let expected: Vec<Violation> = vec![];
 
     verify_violations(&violations, &expected);
 }
