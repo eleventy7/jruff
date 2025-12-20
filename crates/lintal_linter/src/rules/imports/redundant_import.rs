@@ -168,3 +168,156 @@ impl RedundantImport {
         Fix::safe_edit(Edit::range_deletion(delete_range))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lintal_java_cst::TreeWalker;
+    use lintal_java_parser::JavaParser;
+
+    fn check_source(source: &str) -> Vec<Diagnostic> {
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+        let ctx = CheckContext::new(source);
+        let rule = RedundantImport;
+
+        let mut diagnostics = vec![];
+        for node in TreeWalker::new(result.tree.root_node(), source) {
+            diagnostics.extend(rule.check(&ctx, &node));
+        }
+        diagnostics
+    }
+
+    #[test]
+    fn test_java_lang_import() {
+        let source = r#"
+import java.lang.String;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].kind.body.contains("java.lang"));
+    }
+
+    #[test]
+    fn test_java_lang_wildcard() {
+        let source = r#"
+import java.lang.*;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn test_static_java_lang_ok() {
+        let source = r#"
+import static java.lang.Math.PI;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert!(diagnostics.is_empty(), "Static java.lang imports should be allowed");
+    }
+
+    #[test]
+    fn test_same_package_import() {
+        let source = r#"
+package com.example;
+
+import com.example.Other;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].kind.body.contains("same package"));
+    }
+
+    #[test]
+    fn test_same_package_wildcard() {
+        let source = r#"
+package com.example;
+
+import com.example.*;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn test_subpackage_ok() {
+        let source = r#"
+package com.example;
+
+import com.example.sub.Other;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert!(diagnostics.is_empty(), "Subpackage imports should be allowed");
+    }
+
+    #[test]
+    fn test_duplicate_import() {
+        let source = r#"
+import java.util.List;
+import java.util.List;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].kind.body.contains("Duplicate"));
+    }
+
+    #[test]
+    fn test_duplicate_static_import() {
+        let source = r#"
+import static java.lang.Math.*;
+import static java.lang.Math.*;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn test_valid_imports_ok() {
+        let source = r#"
+package com.example;
+
+import java.util.List;
+import java.util.Map;
+import java.io.File;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_all_have_fixes() {
+        let source = r#"
+package com.example;
+
+import java.lang.String;
+import com.example.Other;
+import java.util.List;
+import java.util.List;
+
+class Test {}
+"#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 3);
+        for d in &diagnostics {
+            assert!(d.fix.is_some(), "All violations should have fixes");
+        }
+    }
+}
