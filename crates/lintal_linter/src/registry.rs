@@ -53,7 +53,7 @@ impl RuleRegistry {
             FileTabCharacter, FinalLocalVariable, FinalParameters, LeftCurly, MethodParamPad,
             ModifierOrder, NeedBraces, NoWhitespaceAfter, NoWhitespaceBefore, ParenPad,
             RedundantImport, RedundantModifier, RightCurly, SingleSpaceSeparator, TypecastParenPad,
-            UpperEll, WhitespaceAfter, WhitespaceAround,
+            UnusedImports, UpperEll, WhitespaceAfter, WhitespaceAround,
         };
         // Whitespace rules
         self.register::<WhitespaceAround>();
@@ -83,6 +83,7 @@ impl RuleRegistry {
         self.register::<ArrayTypeStyle>();
         // Import rules
         self.register::<RedundantImport>();
+        self.register::<UnusedImports>();
     }
 
     /// Create a rule from a module name and properties.
