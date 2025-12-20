@@ -249,6 +249,7 @@ impl ModifierOrder {
             "field_declaration"
             | "local_variable_declaration"
             | "formal_parameter"
+            | "catch_formal_parameter"
             | "constructor_declaration" => true,
             "method_declaration" => {
                 // Check if method has non-void return type
@@ -322,5 +323,20 @@ mod tests {
         let source = "class Foo { public @Override void test() {} }";
         let diagnostics = check_source(source);
         assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn test_catch_type_annotation_ok() {
+        // Type annotations on catch parameters are valid
+        let source = r#"
+            @interface DoNotSub {}
+            class Foo {
+                void test() {
+                    try {} catch (final @DoNotSub Exception e) {}
+                }
+            }
+        "#;
+        let diagnostics = check_source(source);
+        assert_eq!(diagnostics.len(), 0);
     }
 }

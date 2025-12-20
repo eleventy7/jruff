@@ -8,7 +8,8 @@ use lintal_diagnostics::{Applicability, Diagnostic, Edit};
 use lintal_java_cst::{CstNode, TreeWalker};
 use lintal_java_parser::JavaParser;
 use lintal_linter::{
-    CheckContext, PlainTextCommentFilterConfig, Rule, RuleRegistry, SuppressionContext,
+    CheckContext, FileSuppressionsConfig, PlainTextCommentFilterConfig, Rule, RuleRegistry,
+    SuppressionContext,
 };
 use lintal_text_size::Ranged;
 use rayon::prelude::*;
@@ -88,7 +89,8 @@ fn main() -> Result<()> {
 /// Run the check command.
 fn run_check(paths: &[PathBuf], config_path: Option<&Path>) -> Result<()> {
     // Load configuration
-    let (rules, merged_config, suppression_filters) = load_rules(config_path)?;
+    let (rules, merged_config, suppression_filters, file_suppressions) =
+        load_rules(config_path, paths)?;
 
     if rules.is_empty() {
         eprintln!("{}", "Warning: No rules configured".yellow());
@@ -112,7 +114,14 @@ fn run_check(paths: &[PathBuf], config_path: Option<&Path>) -> Result<()> {
     let results: Vec<FileCheckResult> = files
         .par_iter()
         .filter_map(|path| {
-            let result = check_file(path, &rules, &suppression_filters);
+            // Skip files that are fully suppressed by file-based suppressions
+            let path_str = path.to_string_lossy();
+            if file_suppressions.is_file_fully_suppressed(&path_str) {
+                files_processed.fetch_add(1, Ordering::Relaxed);
+                return None;
+            }
+
+            let result = check_file(path, &rules, &suppression_filters, &file_suppressions);
             files_processed.fetch_add(1, Ordering::Relaxed);
             result.ok()
         })
@@ -153,7 +162,8 @@ fn run_fix(
     diff_only: bool,
     allow_unsafe: bool,
 ) -> Result<()> {
-    let (rules, merged_config, suppression_filters) = load_rules(config_path)?;
+    let (rules, merged_config, suppression_filters, file_suppressions) =
+        load_rules(config_path, paths)?;
 
     if rules.is_empty() {
         eprintln!("{}", "Warning: No rules configured".yellow());
@@ -182,7 +192,21 @@ fn run_fix(
     let results: Vec<FileFixResult> = files
         .par_iter()
         .filter_map(|path| {
-            fix_file(path, &rules, &suppression_filters, applicability, diff_only).ok()
+            // Skip files that are fully suppressed
+            let path_str = path.to_string_lossy();
+            if file_suppressions.is_file_fully_suppressed(&path_str) {
+                return None;
+            }
+
+            fix_file(
+                path,
+                &rules,
+                &suppression_filters,
+                &file_suppressions,
+                applicability,
+                diff_only,
+            )
+            .ok()
         })
         .collect();
 
@@ -233,6 +257,7 @@ fn fix_file(
     path: &PathBuf,
     rules: &[Box<dyn Rule>],
     suppression_filters: &[PlainTextCommentFilterConfig],
+    file_suppressions: &FileSuppressionsConfig,
     applicability: Applicability,
     diff_only: bool,
 ) -> Result<FileFixResult> {
@@ -256,10 +281,17 @@ fn fix_file(
     let root = CstNode::new(result.tree.root_node(), &source);
     suppression_ctx.parse_suppress_warnings(&source, &root);
 
+    let path_str = path.to_string_lossy();
+
     // Collect all diagnostics, filtering out suppressed ones
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
     for node in TreeWalker::new(root.inner(), &source) {
         for rule in rules {
+            // Skip if this rule is suppressed for this file
+            if file_suppressions.is_suppressed(&path_str, rule.name()) {
+                continue;
+            }
+
             for diagnostic in rule.check(&ctx, &node) {
                 if !suppression_ctx.is_suppressed(rule.name(), diagnostic.range.start()) {
                     diagnostics.push(diagnostic);
@@ -486,15 +518,18 @@ fn format_diff(path: &Path, original: &str, fixed: &str) -> String {
 #[allow(clippy::type_complexity)]
 fn load_rules(
     config_path: Option<&Path>,
+    base_paths: &[PathBuf],
 ) -> Result<(
     Vec<Box<dyn Rule>>,
     Option<MergedConfig>,
     Vec<PlainTextCommentFilterConfig>,
+    FileSuppressionsConfig,
 )> {
     let registry = RuleRegistry::builtin();
 
     // Try to load configuration
-    let (merged_config, suppression_filters) = load_config(config_path)?;
+    let (merged_config, suppression_filters, file_suppressions) =
+        load_config(config_path, base_paths)?;
 
     let rules: Vec<Box<dyn Rule>> = match &merged_config {
         Some(config) => {
@@ -514,13 +549,18 @@ fn load_rules(
         }
     };
 
-    Ok((rules, merged_config, suppression_filters))
+    Ok((rules, merged_config, suppression_filters, file_suppressions))
 }
 
 /// Load merged configuration from files.
 fn load_config(
     config_path: Option<&Path>,
-) -> Result<(Option<MergedConfig>, Vec<PlainTextCommentFilterConfig>)> {
+    base_paths: &[PathBuf],
+) -> Result<(
+    Option<MergedConfig>,
+    Vec<PlainTextCommentFilterConfig>,
+    FileSuppressionsConfig,
+)> {
     // Load lintal.toml if it exists
     let lintal = find_lintal_config();
 
@@ -532,10 +572,10 @@ fn load_config(
                 .as_ref()
                 .and_then(|l| l.checkstyle.config.clone().map(PathBuf::from))
         })
-        .or_else(find_checkstyle_config);
+        .or_else(|| find_checkstyle_config(base_paths));
 
     let Some(checkstyle_path) = checkstyle_path else {
-        return Ok((None, vec![]));
+        return Ok((None, vec![], FileSuppressionsConfig::new()));
     };
 
     if !checkstyle_path.exists() {
@@ -550,9 +590,13 @@ fn load_config(
     // Extract suppression filters from config
     let suppression_filters = extract_suppression_filters(&checkstyle);
 
+    // Extract file-based suppressions
+    let file_suppressions = extract_file_suppressions(&checkstyle, &checkstyle_path);
+
     Ok((
         Some(MergedConfig::new(&checkstyle, lintal.as_ref())),
         suppression_filters,
+        file_suppressions,
     ))
 }
 
@@ -573,6 +617,45 @@ fn extract_suppression_filters(config: &CheckstyleConfig) -> Vec<PlainTextCommen
     }
 
     filters
+}
+
+/// Extract file-based suppressions from checkstyle config.
+/// Looks for SuppressionFilter module and loads the referenced suppressions.xml file.
+fn extract_file_suppressions(
+    config: &CheckstyleConfig,
+    checkstyle_path: &Path,
+) -> FileSuppressionsConfig {
+    // Look for SuppressionFilter module
+    for module in &config.modules {
+        if module.name == "SuppressionFilter" {
+            if let Some(file_prop) = module.property("file") {
+                // Resolve ${config_loc} to the directory containing checkstyle.xml
+                let config_dir = checkstyle_path
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| ".".to_string());
+
+                let resolved_path = file_prop.replace("${config_loc}", &config_dir);
+                let suppressions_path = Path::new(&resolved_path);
+
+                if suppressions_path.exists() {
+                    if let Ok(xml) = std::fs::read_to_string(suppressions_path) {
+                        let config = FileSuppressionsConfig::from_xml(&xml);
+                        if !config.is_empty() {
+                            eprintln!(
+                                "Loaded {} file suppression(s) from: {}",
+                                config.len(),
+                                suppressions_path.display()
+                            );
+                        }
+                        return config;
+                    }
+                }
+            }
+        }
+    }
+
+    FileSuppressionsConfig::new()
 }
 
 /// Create a filter config from a checkstyle module.
@@ -602,13 +685,35 @@ fn find_lintal_config() -> Option<LintalConfig> {
 }
 
 /// Find checkstyle.xml in common locations.
-fn find_checkstyle_config() -> Option<PathBuf> {
+/// Searches in both the current directory and the given base paths.
+fn find_checkstyle_config(base_paths: &[PathBuf]) -> Option<PathBuf> {
     let candidates = [
         "checkstyle.xml",
         "config/checkstyle/checkstyle.xml",
         "config/checkstyle.xml",
         ".checkstyle.xml",
     ];
+
+    // First try relative to each base path (the directories being checked)
+    for base in base_paths {
+        // If base is a file, use its parent directory
+        let base_dir = if base.is_file() {
+            base.parent().map(|p| p.to_path_buf())
+        } else {
+            Some(base.clone())
+        };
+
+        if let Some(base_dir) = base_dir {
+            for candidate in &candidates {
+                let path = base_dir.join(candidate);
+                if path.exists() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+
+    // Then try relative to the current directory
     for candidate in candidates {
         let path = PathBuf::from(candidate);
         if path.exists() {
@@ -659,6 +764,7 @@ fn check_file(
     path: &PathBuf,
     rules: &[Box<dyn Rule>],
     suppression_filters: &[PlainTextCommentFilterConfig],
+    file_suppressions: &FileSuppressionsConfig,
 ) -> Result<FileCheckResult> {
     let source = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read {}", path.display()))?;
@@ -683,11 +789,18 @@ fn check_file(
     let mut violation_count = 0;
     let mut fixable_count = 0;
 
+    let path_str = path.to_string_lossy();
+
     for node in TreeWalker::new(root.inner(), &source) {
         for rule in rules {
+            // Skip if this rule is suppressed for this file by file-based suppressions
+            if file_suppressions.is_suppressed(&path_str, rule.name()) {
+                continue;
+            }
+
             let diagnostics = rule.check(&ctx, &node);
             for diagnostic in diagnostics {
-                // Skip suppressed diagnostics
+                // Skip suppressed diagnostics (comment-based and @SuppressWarnings)
                 if suppression_ctx.is_suppressed(rule.name(), diagnostic.range.start()) {
                     continue;
                 }

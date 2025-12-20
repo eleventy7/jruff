@@ -97,3 +97,48 @@ jobs:
           cargo test --package lintal_linter --test checkstyle_finalparameters
           cargo test --package lintal_linter --test checkstyle_redundantmodifier
           cargo test --package lintal_linter --test checkstyle_finallocalvariable
+
+  # Real-world project tests (ensures lintal works on production codebases)
+  real-world-tests:
+    name: Real-World Projects
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build lintal (release)
+        run: cargo build --release
+
+      - name: Clone test repositories
+        run: |
+          git clone --depth 1 https://github.com/artiofix/artio.git target/artio
+          git clone --depth 1 https://github.com/aeron-io/aeron.git target/aeron
+          git clone --depth 1 https://github.com/aeron-io/agrona.git target/agrona
+
+      - name: Check artio (expect 0 violations)
+        run: |
+          ./target/release/lintal check target/artio 2>&1 | tee artio-output.txt
+          grep -q "No violations found" artio-output.txt
+
+      - name: Check aeron (expect 0 violations)
+        run: |
+          ./target/release/lintal check target/aeron 2>&1 | tee aeron-output.txt
+          grep -q "No violations found" aeron-output.txt
+
+      - name: Check agrona (expect 0 violations)
+        run: |
+          ./target/release/lintal check target/agrona 2>&1 | tee agrona-output.txt
+          grep -q "No violations found" agrona-output.txt

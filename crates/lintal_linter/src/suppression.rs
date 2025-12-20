@@ -68,6 +68,105 @@ impl PlainTextCommentFilterConfig {
     }
 }
 
+/// A file-based suppression rule from suppressions.xml.
+/// Matches file paths and rule names using regex patterns.
+#[derive(Debug, Clone)]
+pub struct FileSuppressionRule {
+    /// Regex pattern to match file paths.
+    pub files_pattern: Regex,
+    /// Regex pattern to match rule/check names ("." matches all).
+    pub checks_pattern: Regex,
+}
+
+impl FileSuppressionRule {
+    /// Create a new file suppression rule.
+    pub fn new(files: &str, checks: &str) -> Option<Self> {
+        let files_pattern = Regex::new(files).ok()?;
+        let checks_pattern = Regex::new(checks).ok()?;
+        Some(Self {
+            files_pattern,
+            checks_pattern,
+        })
+    }
+
+    /// Check if this rule suppresses the given check for the given file path.
+    pub fn is_suppressed(&self, file_path: &str, rule_name: &str) -> bool {
+        self.files_pattern.is_match(file_path) && self.checks_pattern.is_match(rule_name)
+    }
+}
+
+/// Collection of file-based suppression rules.
+#[derive(Debug, Clone, Default)]
+pub struct FileSuppressionsConfig {
+    rules: Vec<FileSuppressionRule>,
+}
+
+impl FileSuppressionsConfig {
+    /// Create a new empty config.
+    pub fn new() -> Self {
+        Self { rules: vec![] }
+    }
+
+    /// Parse suppressions from an XML file (suppressions.xml format).
+    pub fn from_xml(xml: &str) -> Self {
+        let mut config = Self::new();
+
+        // Simple XML parsing for suppress elements
+        // Format: <suppress files="pattern" checks="pattern"/>
+        for line in xml.lines() {
+            let line = line.trim();
+            if !line.starts_with("<suppress ") {
+                continue;
+            }
+
+            let files = Self::extract_attr(line, "files");
+            let checks = Self::extract_attr(line, "checks");
+
+            if let (Some(files), Some(checks)) = (files, checks) {
+                if let Some(rule) = FileSuppressionRule::new(&files, &checks) {
+                    config.rules.push(rule);
+                }
+            }
+        }
+
+        config
+    }
+
+    /// Extract an attribute value from an XML element.
+    fn extract_attr<'a>(line: &'a str, attr: &str) -> Option<&'a str> {
+        let pattern = format!("{}=\"", attr);
+        let start = line.find(&pattern)? + pattern.len();
+        let rest = &line[start..];
+        let end = rest.find('"')?;
+        Some(&rest[..end])
+    }
+
+    /// Check if a rule is suppressed for the given file path.
+    pub fn is_suppressed(&self, file_path: &str, rule_name: &str) -> bool {
+        self.rules
+            .iter()
+            .any(|rule| rule.is_suppressed(file_path, rule_name))
+    }
+
+    /// Check if all rules are suppressed for the given file path.
+    pub fn is_file_fully_suppressed(&self, file_path: &str) -> bool {
+        self.rules.iter().any(|rule| {
+            rule.files_pattern.is_match(file_path)
+                && (rule.checks_pattern.as_str() == "." || rule.checks_pattern.as_str() == ".*")
+        })
+    }
+
+    /// Returns true if there are no suppression rules.
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+
+    /// Returns the number of suppression rules.
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+}
+
 /// Manages suppressions for a source file.
 #[derive(Debug)]
 pub struct SuppressionContext {
@@ -396,16 +495,25 @@ impl SuppressionContext {
     }
 
     /// Parse a single @SuppressWarnings string value.
-    /// Returns the rule name if it matches "checkstyle:RuleName".
+    /// Returns the rule name from formats like:
+    /// - "checkstyle:RuleName" (checkstyle-specific prefix)
+    /// - "RuleName" (works in both javac and checkstyle)
     fn parse_suppress_warning_value(&self, source: &str, string_lit: &CstNode) -> Option<String> {
         let text = &source[string_lit.range()];
         // Remove quotes
         let content = text.trim_matches('"');
 
-        // Check for checkstyle prefix
-        content
+        if content.is_empty() {
+            return None;
+        }
+
+        // Strip optional checkstyle: prefix, otherwise use the value as-is
+        // This matches checkstyle behavior where the prefix is optional
+        let rule = content
             .strip_prefix("checkstyle:")
-            .map(|rule| rule.to_string())
+            .unwrap_or(content);
+
+        Some(rule.to_string())
     }
 }
 
@@ -539,6 +647,37 @@ class Foo {
         assert!(
             ctx.is_suppressed("MethodLength", nested_block_pos),
             "MethodLength should be suppressed"
+        );
+    }
+
+    #[test]
+    fn test_suppress_warnings_without_checkstyle_prefix() {
+        use lintal_java_parser::JavaParser;
+
+        // This is the format artio uses - without the checkstyle: prefix
+        let source = r#"
+class Foo {
+    @SuppressWarnings("FinalParameters")
+    public int getInt(int startInclusive, final int endExclusive) {
+        return 0;
+    }
+}
+"#;
+
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).expect("Failed to parse");
+        let root = CstNode::new(result.tree.root_node(), source);
+
+        let mut ctx = SuppressionContext::new();
+        ctx.parse_suppress_warnings(source, &root);
+
+        assert!(ctx.has_suppressions(), "Should have suppressions");
+
+        // Position inside the method
+        let param_pos = TextSize::new(source.find("int startInclusive").unwrap() as u32);
+        assert!(
+            ctx.is_suppressed("FinalParameters", param_pos),
+            "FinalParameters should be suppressed without checkstyle: prefix"
         );
     }
 }

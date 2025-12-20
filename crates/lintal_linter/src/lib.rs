@@ -5,7 +5,7 @@ pub mod rules;
 pub mod suppression;
 
 pub use registry::{FromConfig, Properties, RuleRegistry};
-pub use suppression::{PlainTextCommentFilterConfig, SuppressionContext};
+pub use suppression::{FileSuppressionsConfig, PlainTextCommentFilterConfig, SuppressionContext};
 
 use lintal_diagnostics::Diagnostic;
 use lintal_java_cst::CstNode;

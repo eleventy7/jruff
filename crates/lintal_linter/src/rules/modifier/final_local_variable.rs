@@ -318,6 +318,79 @@ impl<'a> FinalLocalVariableVisitor<'a> {
         false
     }
 
+    /// Compute the maximum number of assignments to a variable on any single execution path
+    /// through the given node. This properly handles control flow:
+    /// - For if/switch: takes the MAX of branches (since only one executes)
+    /// - For sequential code in blocks: SUMS assignments (all execute)
+    fn max_assignments_on_path(&self, node: &CstNode, var_name: &str) -> usize {
+        match node.kind() {
+            "if_statement" => {
+                // For if, take the max of consequence and alternative paths
+                let cons_max = node
+                    .child_by_field_name("consequence")
+                    .map(|c| self.max_assignments_on_path(&c, var_name))
+                    .unwrap_or(0);
+                let alt_max = node
+                    .child_by_field_name("alternative")
+                    .map(|a| self.max_assignments_on_path(&a, var_name))
+                    .unwrap_or(0);
+                cons_max.max(alt_max)
+            }
+            "switch_expression" | "switch_statement" => {
+                // For switch, take the max of all branches
+                let mut max_count = 0;
+                if let Some(body) = node.child_by_field_name("body") {
+                    for child in body.children() {
+                        let branch_count = self.max_assignments_on_path(&child, var_name);
+                        max_count = max_count.max(branch_count);
+                    }
+                }
+                max_count
+            }
+            "assignment_expression" => {
+                if let Some(left) = node.child_by_field_name("left")
+                    && left.kind() == "identifier"
+                {
+                    let name = &self.ctx.source()[left.range()];
+                    if name == var_name {
+                        return 1;
+                    }
+                }
+                0
+            }
+            "update_expression" => {
+                // Check for x++, ++x, x--, --x
+                if let Some(expr) = node.child_by_field_name("argument") {
+                    if expr.kind() == "identifier" {
+                        let name = &self.ctx.source()[expr.range()];
+                        if name == var_name {
+                            return 1;
+                        }
+                    }
+                } else {
+                    // Fallback: check all children
+                    for child in node.children() {
+                        if child.kind() == "identifier" {
+                            let name = &self.ctx.source()[child.range()];
+                            if name == var_name {
+                                return 1;
+                            }
+                        }
+                    }
+                }
+                0
+            }
+            _ => {
+                // For blocks and other sequential constructs, sum the assignments
+                let mut total = 0;
+                for child in node.children() {
+                    total += self.max_assignments_on_path(&child, var_name);
+                }
+                total
+            }
+        }
+    }
+
     /// Process a variable declaration.
     fn process_variable_declaration(&mut self, node: &CstNode) {
         // Skip variables declared in for-loop initializers (checkstyle does the same)
@@ -733,6 +806,20 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             false
         };
 
+        // Pre-compute max assignments on path for each variable in the alternative.
+        // This is done before mutably borrowing the scope to avoid borrow conflicts.
+        let alternative_max_assignments: HashMap<String, usize> = if has_alternative {
+            let mut result = HashMap::new();
+            if let Some(alt) = node.child_by_field_name("alternative") {
+                for var_name in &uninitialized_before {
+                    result.insert(var_name.clone(), self.max_assignments_on_path(&alt, var_name));
+                }
+            }
+            result
+        } else {
+            HashMap::new()
+        };
+
         // Merge the results based on control flow rules
         if let Some(scope) = self.scopes.last_mut() {
             if has_alternative {
@@ -758,9 +845,17 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                                 .map(|(_, aa)| *aa)
                                 .unwrap_or(false)
                                 && !before_if.get(var_name).map(|(_, aa)| *aa).unwrap_or(false);
+
+                            // Also check if any path in the alternative has multiple assignments.
+                            // This catches cases like: else { x = 1; if (cond) { x = 2; } }
+                            // where x can be assigned twice on a single path.
+                            let assigned_multiple_in_alternative =
+                                alternative_max_assignments.get(var_name).copied().unwrap_or(0) > 1;
+
                             if var.already_assigned
                                 && !var.has_initializer
                                 && !assigned_multiple_in_consequence
+                                && !assigned_multiple_in_alternative
                             {
                                 var.already_assigned = false;
                                 var.assigned = true;

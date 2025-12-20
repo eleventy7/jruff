@@ -376,6 +376,72 @@ public class Test {
     verify_violations(&violations, &expected);
 }
 
+// Test case from artio: variable assigned in else block, then conditionally reassigned
+// within a nested if inside the same else block. This is NOT a candidate for final.
+// See: EncoderGenerator.java line 993 - variable 'suffix' is assigned, then conditionally
+// prepended to in a nested if (aggregateType == GROUP).
+#[test]
+fn test_reassignment_in_nested_if_without_else() {
+    let source = r#"
+public class Test {
+    enum AggregateType { MESSAGE, HEADER, TRAILER, GROUP }
+
+    private String encodeMethod(AggregateType aggregateType) {
+        // This pattern is from artio - should NOT be reported because
+        // suffix is assigned twice in the else branch (once unconditionally,
+        // once conditionally in the nested if)
+        String suffix;
+        if (aggregateType == AggregateType.MESSAGE) {
+            suffix = "message";
+        } else if (aggregateType == AggregateType.HEADER) {
+            suffix = "header";
+        } else if (aggregateType == AggregateType.TRAILER) {
+            suffix = "trailer";
+        } else {
+            suffix = "default";  // First assignment in else
+
+            if (aggregateType == AggregateType.GROUP) {
+                suffix = "group: " + suffix;  // Second assignment - makes it NOT a candidate
+            }
+        }
+
+        return suffix;
+    }
+
+    // Simpler version: assigned before if, reassigned in if consequence (no else)
+    private void simpleCase() {
+        String x;
+        x = "first";  // First assignment
+
+        if (true) {
+            x = "second";  // Second assignment - NOT a candidate
+        }
+    }
+
+    // Counter example: should report because only assigned once per execution path
+    private void shouldReport(boolean flag) {
+        String y;  // Should report - assigned once in each path
+        if (flag) {
+            y = "a";
+        } else {
+            y = "b";
+        }
+    }
+}
+"#;
+
+    let properties = HashMap::new();
+    let violations = check_final_local_variable(source, properties);
+
+    // Only 'y' should be reported - it's assigned exactly once in each path
+    // 'suffix' and 'x' should NOT be reported because they can be assigned twice
+    let expected = vec![
+        Violation::new(39, 16), // y
+    ];
+
+    verify_violations(&violations, &expected);
+}
+
 // =============================================================================
 // Test: testFinalLocalVariableSwitchAssignment
 // File: InputFinalLocalVariableCheckSwitchAssignment.java
@@ -861,9 +927,11 @@ fn test_input_final_local_variable_break() {
     let properties = HashMap::new();
     let violations = check_final_local_variable(&source, properties);
 
+    // Note: Checkstyle 12.3.0 only reports 'e', not 'a' on line 52.
+    // The else branch of `if (true)` has multiple assignments to 'a' (lines 56, 60),
+    // and checkstyle correctly detects this as making 'a' not a final candidate.
     let expected = vec![
         Violation::new(15, 19), // e
-        Violation::new(52, 13), // a
     ];
 
     verify_violations(&violations, &expected);
