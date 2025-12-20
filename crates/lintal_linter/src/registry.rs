@@ -52,8 +52,8 @@ impl RuleRegistry {
             ArrayTypeStyle, AvoidNestedBlocks, EmptyBlock, EmptyCatchBlock, EmptyForInitializerPad,
             FileTabCharacter, FinalLocalVariable, FinalParameters, LeftCurly, MethodParamPad,
             ModifierOrder, NeedBraces, NoWhitespaceAfter, NoWhitespaceBefore, ParenPad,
-            RedundantModifier, RightCurly, SingleSpaceSeparator, TypecastParenPad, UpperEll,
-            WhitespaceAfter, WhitespaceAround,
+            RedundantImport, RedundantModifier, RightCurly, SingleSpaceSeparator, TypecastParenPad,
+            UpperEll, WhitespaceAfter, WhitespaceAround,
         };
         // Whitespace rules
         self.register::<WhitespaceAround>();
@@ -81,6 +81,8 @@ impl RuleRegistry {
         // Style rules
         self.register::<UpperEll>();
         self.register::<ArrayTypeStyle>();
+        // Import rules
+        self.register::<RedundantImport>();
     }
 
     /// Create a rule from a module name and properties.
