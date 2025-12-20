@@ -122,10 +122,10 @@ impl FileSuppressionsConfig {
             let files = Self::extract_attr(line, "files");
             let checks = Self::extract_attr(line, "checks");
 
-            if let (Some(files), Some(checks)) = (files, checks) {
-                if let Some(rule) = FileSuppressionRule::new(&files, &checks) {
-                    config.rules.push(rule);
-                }
+            if let (Some(files), Some(checks)) = (files, checks)
+                && let Some(rule) = FileSuppressionRule::new(files, checks)
+            {
+                config.rules.push(rule);
             }
         }
 
@@ -509,9 +509,7 @@ impl SuppressionContext {
 
         // Strip optional checkstyle: prefix, otherwise use the value as-is
         // This matches checkstyle behavior where the prefix is optional
-        let rule = content
-            .strip_prefix("checkstyle:")
-            .unwrap_or(content);
+        let rule = content.strip_prefix("checkstyle:").unwrap_or(content);
 
         Some(rule.to_string())
     }

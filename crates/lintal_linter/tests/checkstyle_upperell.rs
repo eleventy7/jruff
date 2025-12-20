@@ -16,6 +16,7 @@ struct Violation {
 }
 
 impl Violation {
+    #[allow(dead_code)]
     fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
@@ -68,7 +69,12 @@ fn test_upper_ell_semantic() {
     // Line 29: `private static final long IGNORE = 666l + 666L;`
     // The lowercase 'l' at column 44 (0-indexed would be different)
 
-    assert_eq!(violations.len(), 1, "Expected 1 violation, got {:?}", violations);
+    assert_eq!(
+        violations.len(),
+        1,
+        "Expected 1 violation, got {:?}",
+        violations
+    );
     assert_eq!(violations[0].line, 29, "Violation should be on line 29");
 }
 
@@ -83,7 +89,10 @@ class Test {
 }
 "#;
     let violations = check_upper_ell(source);
-    assert!(violations.is_empty(), "Uppercase L should not cause violations");
+    assert!(
+        violations.is_empty(),
+        "Uppercase L should not cause violations"
+    );
 }
 
 #[test]
@@ -109,7 +118,11 @@ class Test {
 }
 "#;
     let violations = check_upper_ell(source);
-    assert_eq!(violations.len(), 3, "Expected 3 violations for lowercase 'l'");
+    assert_eq!(
+        violations.len(),
+        3,
+        "Expected 3 violations for lowercase 'l'"
+    );
 }
 
 #[test]
@@ -121,7 +134,11 @@ class Test {
 }
 "#;
     let violations = check_upper_ell(source);
-    assert_eq!(violations.len(), 2, "Hex literals with lowercase 'l' should be flagged");
+    assert_eq!(
+        violations.len(),
+        2,
+        "Hex literals with lowercase 'l' should be flagged"
+    );
 }
 
 #[test]
@@ -167,5 +184,9 @@ class Test {
     let fix = diagnostics[0].fix.as_ref().expect("Fix should be present");
     let edits = fix.edits();
     assert_eq!(edits.len(), 1);
-    assert_eq!(edits[0].content().unwrap(), "L", "Fix should replace 'l' with 'L'");
+    assert_eq!(
+        edits[0].content().unwrap(),
+        "L",
+        "Fix should replace 'l' with 'L'"
+    );
 }

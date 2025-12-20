@@ -157,24 +157,21 @@ impl ArrayTypeStyle {
         // If java_style is false, we need to check for Java-style declarations
         // and flag them. But this is complex because the dimensions are in the type,
         // not in the variable_declarator. We'd need to check the parent.
-        if !self.java_style {
-            // Check parent for array_type
-            if let Some(parent) = node.parent() {
-                if parent.kind() == "local_variable_declaration"
-                    || parent.kind() == "field_declaration"
-                {
-                    for sibling in parent.children() {
-                        if sibling.kind() == "array_type" {
-                            // Java style used, but we want C style
-                            // Find the dimensions part of the array_type
-                            for type_child in sibling.children() {
-                                if type_child.kind() == "dimensions" {
-                                    return vec![Diagnostic::new(
-                                        ArrayTypeStyleViolation,
-                                        type_child.range(),
-                                    )];
-                                }
-                            }
+        if !self.java_style
+            && let Some(parent) = node.parent()
+            && (parent.kind() == "local_variable_declaration"
+                || parent.kind() == "field_declaration")
+        {
+            for sibling in parent.children() {
+                if sibling.kind() == "array_type" {
+                    // Java style used, but we want C style
+                    // Find the dimensions part of the array_type
+                    for type_child in sibling.children() {
+                        if type_child.kind() == "dimensions" {
+                            return vec![Diagnostic::new(
+                                ArrayTypeStyleViolation,
+                                type_child.range(),
+                            )];
                         }
                     }
                 }

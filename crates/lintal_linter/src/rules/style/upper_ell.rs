@@ -66,11 +66,12 @@ impl Rule for UpperEll {
         // Check if the literal ends with lowercase 'l'
         if text.ends_with('l') {
             // Create a fix that replaces the 'l' with 'L'
-            let l_start = TextSize::from(range.end()) - TextSize::from(1u32);
+            let l_start = range.end() - TextSize::from(1u32);
             let fix_range = TextRange::new(l_start, range.end());
 
-            let diagnostic = Diagnostic::new(UpperEllViolation, range)
-                .with_fix(Fix::safe_edit(Edit::range_replacement("L".to_string(), fix_range)));
+            let diagnostic = Diagnostic::new(UpperEllViolation, range).with_fix(Fix::safe_edit(
+                Edit::range_replacement("L".to_string(), fix_range),
+            ));
 
             return vec![diagnostic];
         }
@@ -155,7 +156,7 @@ class Test {
     }
 
     #[test]
-    fn test_fix_replaces_l_with_L() {
+    fn test_fix_replaces_lowercase_l_with_uppercase() {
         let source = r#"
 class Test {
     long x = 123l;
@@ -184,7 +185,10 @@ class Test {
         let diagnostics = check_source(source);
         assert_eq!(diagnostics.len(), 5);
         for diag in &diagnostics {
-            assert!(diag.fix.is_some(), "All UpperEll violations should have fixes");
+            assert!(
+                diag.fix.is_some(),
+                "All UpperEll violations should have fixes"
+            );
         }
     }
 }

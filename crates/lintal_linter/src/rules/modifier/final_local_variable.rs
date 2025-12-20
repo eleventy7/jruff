@@ -812,7 +812,10 @@ impl<'a> FinalLocalVariableVisitor<'a> {
             let mut result = HashMap::new();
             if let Some(alt) = node.child_by_field_name("alternative") {
                 for var_name in &uninitialized_before {
-                    result.insert(var_name.clone(), self.max_assignments_on_path(&alt, var_name));
+                    result.insert(
+                        var_name.clone(),
+                        self.max_assignments_on_path(&alt, var_name),
+                    );
                 }
             }
             result
@@ -849,8 +852,11 @@ impl<'a> FinalLocalVariableVisitor<'a> {
                             // Also check if any path in the alternative has multiple assignments.
                             // This catches cases like: else { x = 1; if (cond) { x = 2; } }
                             // where x can be assigned twice on a single path.
-                            let assigned_multiple_in_alternative =
-                                alternative_max_assignments.get(var_name).copied().unwrap_or(0) > 1;
+                            let assigned_multiple_in_alternative = alternative_max_assignments
+                                .get(var_name)
+                                .copied()
+                                .unwrap_or(0)
+                                > 1;
 
                             if var.already_assigned
                                 && !var.has_initializer

@@ -16,6 +16,7 @@ struct Violation {
 }
 
 impl Violation {
+    #[allow(dead_code)]
     fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
@@ -86,7 +87,10 @@ fn test_array_type_style_java_style() {
 
     assert!(has_line_13, "Should have violation on line 13 (cStyle[])");
     assert!(has_line_14, "Should have violation on line 14 (c[])");
-    assert!(has_line_20, "Should have violation on line 20 (aCStyle[] parameter)");
+    assert!(
+        has_line_20,
+        "Should have violation on line 20 (aCStyle[] parameter)"
+    );
 }
 
 #[test]
@@ -113,7 +117,10 @@ fn test_array_type_style_c_style() {
 
     // Line 12 should have a violation
     let has_line_12 = violations.iter().any(|v| v.line == 12);
-    assert!(has_line_12, "Should have violation on line 12 (int[] javaStyle)");
+    assert!(
+        has_line_12,
+        "Should have violation on line 12 (int[] javaStyle)"
+    );
 }
 
 #[test]
@@ -126,7 +133,10 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, true);
-    assert!(violations.is_empty(), "Java-style should not cause violations in java mode");
+    assert!(
+        violations.is_empty(),
+        "Java-style should not cause violations in java mode"
+    );
 }
 
 #[test]
@@ -151,7 +161,11 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, true);
-    assert_eq!(violations.len(), 1, "Method return type with C-style should be violation");
+    assert_eq!(
+        violations.len(),
+        1,
+        "Method return type with C-style should be violation"
+    );
 }
 
 #[test]
@@ -164,7 +178,10 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, true);
-    assert!(violations.is_empty(), "Java-style method return should not cause violations");
+    assert!(
+        violations.is_empty(),
+        "Java-style method return should not cause violations"
+    );
 }
 
 #[test]
@@ -176,7 +193,10 @@ class Test {
 "#;
     let violations = check_array_type_style(source, true);
     // Multi-dimensional C-style should be flagged
-    assert!(!violations.is_empty(), "Multi-dimensional C-style should cause violations");
+    assert!(
+        !violations.is_empty(),
+        "Multi-dimensional C-style should cause violations"
+    );
 }
 
 #[test]
@@ -187,7 +207,11 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, true);
-    assert_eq!(violations.len(), 1, "Parameter with C-style should be violation");
+    assert_eq!(
+        violations.len(),
+        1,
+        "Parameter with C-style should be violation"
+    );
 }
 
 #[test]
@@ -200,7 +224,11 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, true);
-    assert_eq!(violations.len(), 1, "Local variable with C-style should be violation");
+    assert_eq!(
+        violations.len(),
+        1,
+        "Local variable with C-style should be violation"
+    );
 }
 
 #[test]
@@ -211,7 +239,11 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, false);
-    assert_eq!(violations.len(), 1, "Java-style should cause violation in C mode");
+    assert_eq!(
+        violations.len(),
+        1,
+        "Java-style should cause violation in C mode"
+    );
 }
 
 #[test]
@@ -222,7 +254,10 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, false);
-    assert!(violations.is_empty(), "C-style should not cause violations in C mode");
+    assert!(
+        violations.is_empty(),
+        "C-style should not cause violations in C mode"
+    );
 }
 
 #[test]
@@ -235,7 +270,10 @@ class Test {
 }
 "#;
     let violations = check_array_type_style(source, true);
-    assert!(violations.is_empty(), "instanceof checks should not be flagged");
+    assert!(
+        violations.is_empty(),
+        "instanceof checks should not be flagged"
+    );
 }
 
 #[test]
@@ -258,5 +296,5 @@ class Test {
     assert_eq!(diagnostics.len(), 1);
     let fix = diagnostics[0].fix.as_ref().expect("Fix should be present");
     let edits = fix.edits();
-    assert!(edits.len() >= 1, "Fix should have edits");
+    assert!(!edits.is_empty(), "Fix should have edits");
 }

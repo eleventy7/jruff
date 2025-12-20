@@ -627,30 +627,30 @@ fn extract_file_suppressions(
 ) -> FileSuppressionsConfig {
     // Look for SuppressionFilter module
     for module in &config.modules {
-        if module.name == "SuppressionFilter" {
-            if let Some(file_prop) = module.property("file") {
-                // Resolve ${config_loc} to the directory containing checkstyle.xml
-                let config_dir = checkstyle_path
-                    .parent()
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| ".".to_string());
+        if module.name == "SuppressionFilter"
+            && let Some(file_prop) = module.property("file")
+        {
+            // Resolve ${config_loc} to the directory containing checkstyle.xml
+            let config_dir = checkstyle_path
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| ".".to_string());
 
-                let resolved_path = file_prop.replace("${config_loc}", &config_dir);
-                let suppressions_path = Path::new(&resolved_path);
+            let resolved_path = file_prop.replace("${config_loc}", &config_dir);
+            let suppressions_path = Path::new(&resolved_path);
 
-                if suppressions_path.exists() {
-                    if let Ok(xml) = std::fs::read_to_string(suppressions_path) {
-                        let config = FileSuppressionsConfig::from_xml(&xml);
-                        if !config.is_empty() {
-                            eprintln!(
-                                "Loaded {} file suppression(s) from: {}",
-                                config.len(),
-                                suppressions_path.display()
-                            );
-                        }
-                        return config;
-                    }
+            if suppressions_path.exists()
+                && let Ok(xml) = std::fs::read_to_string(suppressions_path)
+            {
+                let config = FileSuppressionsConfig::from_xml(&xml);
+                if !config.is_empty() {
+                    eprintln!(
+                        "Loaded {} file suppression(s) from: {}",
+                        config.len(),
+                        suppressions_path.display()
+                    );
                 }
+                return config;
             }
         }
     }
