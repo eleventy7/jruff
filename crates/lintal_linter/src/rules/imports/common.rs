@@ -115,6 +115,27 @@ fn parse_import_declaration(node: Node, source: &str, source_code: &SourceCode) 
     })
 }
 
+/// Extract the package name from the source file.
+pub fn get_package_name(root: Node, source: &str) -> Option<String> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() == "package_declaration" {
+            return extract_package_path(child, source);
+        }
+    }
+    None
+}
+
+fn extract_package_path(node: Node, source: &str) -> Option<String> {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "scoped_identifier" || child.kind() == "identifier" {
+            return child.utf8_text(source.as_bytes()).ok().map(String::from);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +197,37 @@ class Test {}
         assert_eq!(imports.len(), 1);
         assert!(imports[0].is_static);
         assert_eq!(imports[0].simple_name, Some("PI".to_string()));
+    }
+
+    #[test]
+    fn test_get_package_name() {
+        let source = r#"
+package com.example.myapp;
+
+import java.util.List;
+
+class Test {}
+"#;
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+
+        let package = get_package_name(result.tree.root_node(), source);
+
+        assert_eq!(package, Some("com.example.myapp".to_string()));
+    }
+
+    #[test]
+    fn test_no_package() {
+        let source = r#"
+import java.util.List;
+
+class Test {}
+"#;
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+
+        let package = get_package_name(result.tree.root_node(), source);
+
+        assert!(package.is_none());
     }
 }
