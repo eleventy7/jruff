@@ -403,8 +403,8 @@ impl ParenPad {
                 // Empty parens, don't check
                 return diagnostics;
             }
-            if next_char == '\n' {
-                // Multi-line - checkstyle doesn't flag these
+            if next_char == '\n' || next_char == '\r' {
+                // Multi-line - checkstyle doesn't flag these (handle both LF and CRLF)
                 return diagnostics;
             }
         }
@@ -618,6 +618,44 @@ mod tests {
         assert!(
             paren_violations.is_empty(),
             "Should not flag ) in for loop with empty iterator. Found: {:?}",
+            paren_violations
+                .iter()
+                .map(|d| &d.kind.body)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_multiline_lf_not_flagged() {
+        // Multi-line expressions with LF should not be flagged
+        let source = "class Foo {\n    void m(\n        int x) {}\n}";
+        let diagnostics = check_source(source);
+        let paren_violations: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.kind.body.contains("'('") && d.kind.body.contains("followed"))
+            .collect();
+        assert!(
+            paren_violations.is_empty(),
+            "Should not flag ( followed by LF line break. Found: {:?}",
+            paren_violations
+                .iter()
+                .map(|d| &d.kind.body)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_multiline_crlf_not_flagged() {
+        // Multi-line expressions with CRLF (Windows line endings) should not be flagged
+        let source = "class Foo {\r\n    void m(\r\n        int x) {}\r\n}";
+        let diagnostics = check_source(source);
+        let paren_violations: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| d.kind.body.contains("'('") && d.kind.body.contains("followed"))
+            .collect();
+        assert!(
+            paren_violations.is_empty(),
+            "Should not flag ( followed by CRLF line break. Found: {:?}",
             paren_violations
                 .iter()
                 .map(|d| &d.kind.body)

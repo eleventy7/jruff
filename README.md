@@ -10,11 +10,13 @@ lintal reads checkstyle.xml configuration files and can automatically fix many v
 
 The project is focused on safely autofixable cases to begin with, and aims for 100% compatibility with Checkstyle. Checkstyle test cases are downloaded during the testing build phase to validate compatibility.
 
+lintal is tested against real-world projects including [Aeron](https://github.com/aeron-io/aeron), [Artio](https://github.com/artiofix/artio), and [Agrona](https://github.com/aeron-io/agrona) to ensure zero false positives.
+
 ## Performance
 
 lintal is significantly faster than checkstyle due to native compilation and parallel processing.
 
-**Benchmark on [Aeron](https://github.com/real-logic/aeron)** (1,208 Java files):
+**Benchmark on [Aeron](https://github.com/aeron-io/aeron)** (1,208 Java files):
 
 | Tool | Time | Speedup |
 |------|------|---------|
@@ -29,12 +31,14 @@ Key factors:
 ## Features
 
 - Reads existing checkstyle.xml configurations
-- Auto-fixes many common violations (whitespace, brace placement, imports, modifiers)
+- Auto-discovers config in standard locations (`config/checkstyle/checkstyle.xml`)
+- Auto-fixes many common violations (whitespace, brace placement, modifiers)
 - Fast parallel processing
 - Suppression support:
-  - `@SuppressWarnings("checkstyle:RuleName")` annotations
+  - `@SuppressWarnings("checkstyle:RuleName")` or `@SuppressWarnings("RuleName")` annotations
   - `SuppressWithPlainTextCommentFilter` (`// CHECKSTYLE:OFF:RuleName` comments)
   - `SuppressWarningsFilter`
+  - `SuppressionFilter` (file-based suppressions via `suppressions.xml`)
 - Optional TOML overlay for fix-specific settings
 
 ## Installation
@@ -61,7 +65,7 @@ lintal fix src/ --diff
 
 ## Supported Rules
 
-lintal currently implements 20 checkstyle rules with 100% compatibility against checkstyle's own test suite.
+lintal currently implements 22 checkstyle rules with 100% compatibility against checkstyle's own test suite.
 
 ### Whitespace (10 rules)
 
@@ -97,6 +101,13 @@ lintal currently implements 20 checkstyle rules with 100% compatibility against 
 | RedundantModifier | ✅ | 100% compatible |
 | FinalParameters | ✅ | 100% compatible |
 | FinalLocalVariable | ✅ | 100% compatible |
+
+### Miscellaneous (2 rules)
+
+| Rule | Auto-fix | Status |
+|------|----------|--------|
+| UpperEll | ✅ | 100% compatible |
+| ArrayTypeStyle | ✅ | 100% compatible |
 
 ## Development
 
