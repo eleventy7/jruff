@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use lintal_source_file::{LineIndex, SourceCode};
 use lintal_text_size::{TextRange, TextSize};
+use regex::Regex;
 use tree_sitter::Node;
 
 /// Represents a parsed import statement.
@@ -232,6 +233,88 @@ fn collect_usages_recursive(node: Node, source: &str, usages: &mut HashSet<Strin
     }
 }
 
+/// Extract type references from Javadoc comments.
+///
+/// Parses:
+/// - {@link Type}, {@link Type#method}, {@link Type#method(Param)}
+/// - {@linkplain Type text}
+/// - @see Type
+/// - @throws Type, @exception Type
+pub fn collect_javadoc_references(root: Node, source: &str) -> HashSet<String> {
+    let mut references = HashSet::new();
+    collect_javadoc_recursive(root, source, &mut references);
+    references
+}
+
+fn collect_javadoc_recursive(node: Node, source: &str, references: &mut HashSet<String>) {
+    if node.kind() == "block_comment" {
+        if let Ok(text) = node.utf8_text(source.as_bytes()) {
+            if text.starts_with("/**") {
+                parse_javadoc_types(text, references);
+            }
+        }
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_javadoc_recursive(child, source, references);
+    }
+}
+
+fn parse_javadoc_types(javadoc: &str, references: &mut HashSet<String>) {
+    // Pattern for {@link Type}, {@link Type#method}, {@link Type#method(Param1, Param2)}
+    // Also handles {@linkplain Type text}
+    lazy_static::lazy_static! {
+        static ref LINK_RE: Regex = Regex::new(
+            r"\{@(?:link|linkplain)\s+([A-Z][A-Za-z0-9_]*)(?:#[^}(]*(?:\(([^)]*)\))?)?[^}]*\}"
+        ).unwrap();
+
+        static ref SEE_RE: Regex = Regex::new(
+            r"@see\s+([A-Z][A-Za-z0-9_.]*)"
+        ).unwrap();
+
+        static ref THROWS_RE: Regex = Regex::new(
+            r"@(?:throws|exception)\s+([A-Z][A-Za-z0-9_.]*)"
+        ).unwrap();
+
+        static ref PARAM_TYPE_RE: Regex = Regex::new(
+            r"([A-Z][A-Za-z0-9_]*)"
+        ).unwrap();
+    }
+
+    // Extract from @link tags
+    for cap in LINK_RE.captures_iter(javadoc) {
+        if let Some(m) = cap.get(1) {
+            references.insert(m.as_str().to_string());
+        }
+        // Also extract types from method parameters like Type#method(ParamType)
+        if let Some(params) = cap.get(2) {
+            for param_cap in PARAM_TYPE_RE.captures_iter(params.as_str()) {
+                if let Some(m) = param_cap.get(1) {
+                    references.insert(m.as_str().to_string());
+                }
+            }
+        }
+    }
+
+    // Extract from @see tags
+    for cap in SEE_RE.captures_iter(javadoc) {
+        if let Some(m) = cap.get(1) {
+            // Get just the simple name (first part before any dot)
+            let name = m.as_str().split('.').next().unwrap_or(m.as_str());
+            references.insert(name.to_string());
+        }
+    }
+
+    // Extract from @throws/@exception tags
+    for cap in THROWS_RE.captures_iter(javadoc) {
+        if let Some(m) = cap.get(1) {
+            let name = m.as_str().split('.').next().unwrap_or(m.as_str());
+            references.insert(name.to_string());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +474,72 @@ class Test {
         let usages = collect_type_usages(result.tree.root_node(), source);
 
         assert!(usages.contains("JToolBar"), "Should capture outer class from inner class reference");
+    }
+
+    #[test]
+    fn test_javadoc_link() {
+        let source = r#"
+/**
+ * See {@link List} for details.
+ */
+class Test {}
+"#;
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+
+        let refs = collect_javadoc_references(result.tree.root_node(), source);
+
+        assert!(refs.contains("List"));
+    }
+
+    #[test]
+    fn test_javadoc_link_with_method() {
+        let source = r#"
+/**
+ * Uses {@link Arrays#sort(Object[])} internally.
+ */
+class Test {}
+"#;
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+
+        let refs = collect_javadoc_references(result.tree.root_node(), source);
+
+        assert!(refs.contains("Arrays"));
+        assert!(refs.contains("Object"));
+    }
+
+    #[test]
+    fn test_javadoc_see() {
+        let source = r#"
+/**
+ * @see Calendar
+ */
+class Test {}
+"#;
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+
+        let refs = collect_javadoc_references(result.tree.root_node(), source);
+
+        assert!(refs.contains("Calendar"));
+    }
+
+    #[test]
+    fn test_javadoc_throws() {
+        let source = r#"
+/**
+ * @throws IOException if error
+ * @exception RuntimeException if bad
+ */
+class Test {}
+"#;
+        let mut parser = JavaParser::new();
+        let result = parser.parse(source).unwrap();
+
+        let refs = collect_javadoc_references(result.tree.root_node(), source);
+
+        assert!(refs.contains("IOException"));
+        assert!(refs.contains("RuntimeException"));
     }
 }
