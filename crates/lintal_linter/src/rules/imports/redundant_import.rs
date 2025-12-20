@@ -131,7 +131,20 @@ impl RedundantImport {
             return false;
         }
 
-        import.path.starts_with("java.lang.") || import.path == "java.lang.*"
+        // Check for wildcard: java.lang.*
+        if import.path == "java.lang.*" {
+            return true;
+        }
+
+        // Check for direct java.lang import (not a subpackage)
+        // java.lang.String -> redundant
+        // java.lang.instrument.Instrumentation -> NOT redundant (subpackage)
+        if let Some(rest) = import.path.strip_prefix("java.lang.") {
+            // If there's no more dots, it's directly in java.lang
+            !rest.contains('.')
+        } else {
+            false
+        }
     }
 
     fn is_same_package_import(&self, import: &ImportInfo, current_package: &str) -> bool {

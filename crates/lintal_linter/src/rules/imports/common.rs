@@ -155,6 +155,80 @@ pub fn collect_type_usages(root: Node, source: &str) -> HashSet<String> {
     usages
 }
 
+/// Check if any ancestor of this node is a "defining" context where the identifier
+/// is being declared rather than used.
+fn has_defining_ancestor(node: Node) -> bool {
+    let mut current = node.parent();
+    while let Some(ancestor) = current {
+        match ancestor.kind() {
+            // Import/package contexts - ALL identifiers here are not usages
+            "import_declaration" | "package_declaration" => return true,
+
+            // Type declarations - only the NAME is a definition
+            "class_declaration"
+            | "interface_declaration"
+            | "enum_declaration"
+            | "record_declaration"
+            | "annotation_type_declaration" => {
+                if let Some(name_node) = ancestor.child_by_field_name("name")
+                    && is_ancestor_of(name_node, node)
+                {
+                    return true;
+                }
+            }
+
+            // Method/constructor declarations - only the NAME is a definition
+            "method_declaration" | "constructor_declaration" => {
+                if let Some(name_node) = ancestor.child_by_field_name("name")
+                    && is_ancestor_of(name_node, node)
+                {
+                    return true;
+                }
+            }
+
+            // Variable/field/parameter declarations - the name being declared
+            "variable_declarator" | "formal_parameter" | "catch_formal_parameter" => {
+                if let Some(name_node) = ancestor.child_by_field_name("name")
+                    && is_ancestor_of(name_node, node)
+                {
+                    return true;
+                }
+            }
+
+            // Inferred lambda parameter (without type) - the parameter name is defined
+            "inferred_parameters" => return true,
+
+            // Enum constant - the name is being defined
+            "enum_constant" => {
+                if let Some(name_node) = ancestor.child_by_field_name("name")
+                    && is_ancestor_of(name_node, node)
+                {
+                    return true;
+                }
+            }
+
+            _ => {}
+        }
+        current = ancestor.parent();
+    }
+    false
+}
+
+/// Check if `ancestor` is an ancestor of `node` (or is `node` itself).
+fn is_ancestor_of(ancestor: Node, node: Node) -> bool {
+    if ancestor.id() == node.id() {
+        return true;
+    }
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if parent.id() == ancestor.id() {
+            return true;
+        }
+        current = parent.parent();
+    }
+    false
+}
+
 fn collect_usages_recursive(node: Node, source: &str, usages: &mut HashSet<String>) {
     match node.kind() {
         // Type identifier - used in declarations, generics, etc.
@@ -201,20 +275,22 @@ fn collect_usages_recursive(node: Node, source: &str, usages: &mut HashSet<Strin
         }
 
         // Method invocation on a type - e.g., Arrays.sort()
+        // Also captures direct static method calls - e.g., sort() from import static Arrays.sort
         "method_invocation" => {
-            if let Some(object) = node.child_by_field_name("object")
-                && object.kind() == "identifier"
-                && let Ok(text) = object.utf8_text(source.as_bytes())
-            {
-                // Check if it looks like a class name (starts with uppercase)
-                if text
-                    .chars()
-                    .next()
-                    .map(|c| c.is_uppercase())
-                    .unwrap_or(false)
+            if let Some(object) = node.child_by_field_name("object") {
+                // Has an object: e.g., Arrays.sort() - capture "Arrays"
+                if object.kind() == "identifier"
+                    && let Ok(text) = object.utf8_text(source.as_bytes())
+                    && text.chars().next().is_some_and(|c| c.is_uppercase())
                 {
                     usages.insert(text.to_string());
                 }
+            } else if let Some(name) = node.child_by_field_name("name")
+                && let Ok(text) = name.utf8_text(source.as_bytes())
+            {
+                // No object: direct call like to() from import static Advice.to
+                // Capture the method name for static import detection
+                usages.insert(text.to_string());
             }
         }
 
@@ -223,13 +299,30 @@ fn collect_usages_recursive(node: Node, source: &str, usages: &mut HashSet<Strin
             if let Some(object) = node.child_by_field_name("object")
                 && object.kind() == "identifier"
                 && let Ok(text) = object.utf8_text(source.as_bytes())
-                && text
-                    .chars()
-                    .next()
-                    .map(|c| c.is_uppercase())
-                    .unwrap_or(false)
+                && text.chars().next().is_some_and(|c| c.is_uppercase())
             {
                 usages.insert(text.to_string());
+            }
+        }
+
+        // Identifier in expression context - captures static field imports
+        // e.g., SIZE_OF_INT from import static BitUtil.SIZE_OF_INT
+        "identifier" => {
+            // Skip if any ancestor is an import/package declaration or a defining context
+            if !has_defining_ancestor(node)
+                && let Some(parent) = node.parent()
+            {
+                // Also skip if this is the "name" field of a method_invocation with object
+                // (those are handled separately above)
+                let is_qualified_method_name = parent.kind() == "method_invocation"
+                    && parent
+                        .child_by_field_name("name")
+                        .is_some_and(|n| n.id() == node.id())
+                    && parent.child_by_field_name("object").is_some();
+
+                if !is_qualified_method_name && let Ok(text) = node.utf8_text(source.as_bytes()) {
+                    usages.insert(text.to_string());
+                }
             }
         }
 
@@ -272,14 +365,16 @@ fn collect_javadoc_recursive(node: Node, source: &str, references: &mut HashSet<
 
 fn parse_javadoc_types(javadoc: &str, references: &mut HashSet<String>) {
     // Pattern for {@link Type}, {@link Type#method}, {@link Type#method(Param1, Param2)}
-    // Also handles {@linkplain Type text}
+    // Also handles {@linkplain Type text} and {@link #method(Type)} (same-class method refs)
     lazy_static::lazy_static! {
         static ref LINK_RE: Regex = Regex::new(
-            r"\{@(?:link|linkplain)\s+([A-Z][A-Za-z0-9_]*)(?:#[^}(]*(?:\(([^)]*)\))?)?[^}]*\}"
+            r"\{@(?:link|linkplain)\s+(?:([A-Z][A-Za-z0-9_]*))?(?:#[^}(]*(?:\(([^)]*)\))?)?[^}]*\}"
         ).unwrap();
 
+        // @see Type, @see Type#method, @see fqn.Type#method(Param1, Param2)
+        // Captures the reference which may include parentheses with spaces
         static ref SEE_RE: Regex = Regex::new(
-            r"@see\s+([A-Z][A-Za-z0-9_.]*)"
+            r"@see\s+([^\s(]+(?:\([^)]*\))?)"
         ).unwrap();
 
         static ref THROWS_RE: Regex = Regex::new(
@@ -306,12 +401,16 @@ fn parse_javadoc_types(javadoc: &str, references: &mut HashSet<String>) {
         }
     }
 
-    // Extract from @see tags
+    // Extract from @see tags - extract ALL capitalized identifiers
+    // This handles: @see Type, @see fqn.Type#method, @see fqn.Type#method(Param)
     for cap in SEE_RE.captures_iter(javadoc) {
         if let Some(m) = cap.get(1) {
-            // Get just the simple name (first part before any dot)
-            let name = m.as_str().split('.').next().unwrap_or(m.as_str());
-            references.insert(name.to_string());
+            // Extract all capitalized type names from the reference
+            for type_cap in PARAM_TYPE_RE.captures_iter(m.as_str()) {
+                if let Some(t) = type_cap.get(1) {
+                    references.insert(t.as_str().to_string());
+                }
+            }
         }
     }
 

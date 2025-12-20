@@ -16,13 +16,13 @@ lintal is tested against real-world projects including [Aeron](https://github.co
 
 lintal is significantly faster than checkstyle due to native compilation and parallel processing.
 
-**Benchmark vs Checkstyle 12.3.0** (same files, same config):
+**Benchmark vs Checkstyle 12.3.0** (same files, same 24 rules):
 
 | Repository | Files | Checkstyle | lintal | Speedup |
 |------------|-------|------------|--------|---------|
-| Agrona | 172 | 1.35s | 0.16s | **8.4x** |
-| Artio | 428 | 2.0s | 0.39s | **5.1x** |
-| Aeron | 528 | 3.5s | 1.4s | **2.5x** |
+| Agrona | 289 | 1.67s | 0.35s | **4.8x** |
+| Artio | 726 | 2.95s | 0.71s | **4.2x** |
+| Aeron | 1596 | 7.0s | 2.3s | **3.0x** |
 
 Key factors:
 - Native binary with no JVM startup overhead
@@ -66,7 +66,7 @@ lintal fix src/ --diff
 
 ## Supported Rules
 
-lintal currently implements 22 checkstyle rules with 100% compatibility against checkstyle's own test suite.
+lintal currently implements 24 checkstyle rules with 100% compatibility against checkstyle's own test suite.
 
 ### Whitespace (10 rules)
 
@@ -109,6 +109,13 @@ lintal currently implements 22 checkstyle rules with 100% compatibility against 
 |------|----------|--------|
 | UpperEll | ✅ | 100% compatible |
 | ArrayTypeStyle | ✅ | 100% compatible |
+
+### Imports (2 rules)
+
+| Rule | Auto-fix | Status |
+|------|----------|--------|
+| UnusedImports | ✅ | 100% compatible |
+| RedundantImport | ✅ | 100% compatible |
 
 ## Development
 
