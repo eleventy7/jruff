@@ -72,6 +72,18 @@ pub fn imports_test_input(check_name: &str, file_name: &str) -> Option<PathBuf> 
     if path.exists() { Some(path) } else { None }
 }
 
+/// Get path to a checkstyle test input file for coding checks.
+#[allow(dead_code)]
+pub fn coding_test_input(check_name: &str, file_name: &str) -> Option<PathBuf> {
+    let repo = checkstyle_repo()?;
+    let path = repo
+        .join("src/test/resources/com/puppycrawl/tools/checkstyle/checks/coding")
+        .join(check_name.to_lowercase())
+        .join(file_name);
+
+    if path.exists() { Some(path) } else { None }
+}
+
 fn ensure_repo(target_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if target_dir.join(".git").exists() {
         // Repo exists, verify we're at the right commit
