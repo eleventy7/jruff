@@ -66,8 +66,11 @@ fn test_single_line_in_loops() {
     // We detect the clear cases where both complete statements are on the same line
     let expected_lines = vec![53, 65, 85, 89];
 
-    println!("Found {} violations on lines: {:?}", violations.len(),
-             violations.iter().map(|v| v.line).collect::<Vec<_>>());
+    println!(
+        "Found {} violations on lines: {:?}",
+        violations.len(),
+        violations.iter().map(|v| v.line).collect::<Vec<_>>()
+    );
 
     for line in &expected_lines {
         assert!(
@@ -79,12 +82,17 @@ fn test_single_line_in_loops() {
     }
 
     // Should have at least the clear violations
-    assert!(violations.len() >= 4, "Expected at least 4 violations, got {}", violations.len());
+    assert!(
+        violations.len() >= 4,
+        "Expected at least 4 violations, got {}",
+        violations.len()
+    );
 }
 
 #[test]
 fn test_for_declarations_ok() {
-    let Some(source) = load_fixture("InputOneStatementPerLineSingleLineForDeclarations.java") else {
+    let Some(source) = load_fixture("InputOneStatementPerLineSingleLineForDeclarations.java")
+    else {
         eprintln!("Skipping test: checkstyle repo not available");
         return;
     };
@@ -95,7 +103,10 @@ fn test_for_declarations_ok() {
     // The file has for loops with multiple statements in header - these are OK
     // Only check that we don't flag for-loop internals incorrectly
 
-    println!("Found {} violations in for declarations test", violations.len());
+    println!(
+        "Found {} violations in for declarations test",
+        violations.len()
+    );
     for v in &violations {
         println!("  Line {}", v.line);
     }
@@ -122,9 +133,6 @@ class Test {
     }
 
     for diag in &diagnostics {
-        assert!(
-            diag.fix.is_some(),
-            "All violations should have fixes"
-        );
+        assert!(diag.fix.is_some(), "All violations should have fixes");
     }
 }

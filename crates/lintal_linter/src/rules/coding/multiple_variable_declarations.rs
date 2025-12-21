@@ -114,11 +114,11 @@ impl MultipleVariableDeclarations {
             }
         }
 
-        if declarator_count > 1 {
-            if let Some(range) = first_declarator_range {
-                // TODO: Create fix that splits declarations
-                return vec![Diagnostic::new(MultipleInStatementViolation, range)];
-            }
+        if declarator_count > 1
+            && let Some(range) = first_declarator_range
+        {
+            // TODO: Create fix that splits declarations
+            return vec![Diagnostic::new(MultipleInStatementViolation, range)];
         }
 
         vec![]
@@ -142,30 +142,26 @@ impl MultipleVariableDeclarations {
             let start_pos = lintal_text_size::TextSize::from(child.start_byte() as u32);
             let current_line = source_code.line_column(start_pos).line.get();
 
-            if let Some(prev_line) = prev_decl_line {
-                if current_line == prev_line {
-                    let range = lintal_text_size::TextRange::new(
-                        start_pos,
-                        lintal_text_size::TextSize::from(child.end_byte() as u32),
-                    );
+            if let Some(prev_line) = prev_decl_line
+                && current_line == prev_line
+            {
+                let range = lintal_text_size::TextRange::new(
+                    start_pos,
+                    lintal_text_size::TextSize::from(child.end_byte() as u32),
+                );
 
-                    // Create fix: insert newline before this declaration
-                    let source = ctx.source();
-                    let indent = Self::get_indentation(source, child.start_byte());
-                    let fix_start = Self::find_prev_semicolon_end(source, child.start_byte());
-                    let fix_range = lintal_text_size::TextRange::new(
-                        lintal_text_size::TextSize::from(fix_start as u32),
-                        start_pos,
-                    );
+                // Create fix: insert newline before this declaration
+                let source = ctx.source();
+                let indent = Self::get_indentation(source, child.start_byte());
+                let fix_start = Self::find_prev_semicolon_end(source, child.start_byte());
+                let fix_range = lintal_text_size::TextRange::new(
+                    lintal_text_size::TextSize::from(fix_start as u32),
+                    start_pos,
+                );
 
-                    diagnostics.push(
-                        Diagnostic::new(MultipleOnLineViolation, range)
-                            .with_fix(Fix::safe_edit(Edit::range_replacement(
-                                format!("\n{}", indent),
-                                fix_range,
-                            ))),
-                    );
-                }
+                diagnostics.push(Diagnostic::new(MultipleOnLineViolation, range).with_fix(
+                    Fix::safe_edit(Edit::range_replacement(format!("\n{}", indent), fix_range)),
+                ));
             }
 
             prev_decl_line = Some(current_line);
@@ -218,7 +214,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for comma-separated variables");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for comma-separated variables"
+        );
         assert!(diagnostics[0].kind.body.contains("own statement"));
     }
 
@@ -230,7 +230,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for same-line declarations");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for same-line declarations"
+        );
         assert!(diagnostics[0].kind.body.contains("per line"));
     }
 
@@ -243,7 +247,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "Separate lines should not cause violations");
+        assert!(
+            diagnostics.is_empty(),
+            "Separate lines should not cause violations"
+        );
     }
 
     #[test]
@@ -256,6 +263,9 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "For loop initializers should not cause violations");
+        assert!(
+            diagnostics.is_empty(),
+            "For loop initializers should not cause violations"
+        );
     }
 }

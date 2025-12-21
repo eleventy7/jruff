@@ -22,18 +22,10 @@ impl Violation for OneStatementPerLineViolation {
 }
 
 /// Configuration for OneStatementPerLine rule.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OneStatementPerLine {
     /// Whether try-with-resources resources count as statements.
     pub treat_try_resources_as_statement: bool,
-}
-
-impl Default for OneStatementPerLine {
-    fn default() -> Self {
-        Self {
-            treat_try_resources_as_statement: false,
-        }
-    }
 }
 
 impl FromConfig for OneStatementPerLine {
@@ -81,30 +73,28 @@ impl Rule for OneStatementPerLine {
             let start_pos = lintal_text_size::TextSize::from(child.start_byte() as u32);
             let current_line = source_code.line_column(start_pos).line.get();
 
-            if let Some(prev_line) = prev_statement_line {
-                if current_line == prev_line {
-                    // Two statements on same line - violation
-                    let range = lintal_text_size::TextRange::new(
-                        start_pos,
-                        lintal_text_size::TextSize::from(child.end_byte() as u32),
-                    );
+            if let Some(prev_line) = prev_statement_line
+                && current_line == prev_line
+            {
+                // Two statements on same line - violation
+                let range = lintal_text_size::TextRange::new(
+                    start_pos,
+                    lintal_text_size::TextSize::from(child.end_byte() as u32),
+                );
 
-                    // Calculate fix: insert newline + indentation before this statement
-                    let indent = Self::get_indentation(source, child.start_byte());
-                    let fix_start = Self::find_prev_semicolon_end(source, child.start_byte());
-                    let fix_range = lintal_text_size::TextRange::new(
-                        lintal_text_size::TextSize::from(fix_start as u32),
-                        start_pos,
-                    );
+                // Calculate fix: insert newline + indentation before this statement
+                let indent = Self::get_indentation(source, child.start_byte());
+                let fix_start = Self::find_prev_semicolon_end(source, child.start_byte());
+                let fix_range = lintal_text_size::TextRange::new(
+                    lintal_text_size::TextSize::from(fix_start as u32),
+                    start_pos,
+                );
 
-                    diagnostics.push(
-                        Diagnostic::new(OneStatementPerLineViolation, range)
-                            .with_fix(Fix::safe_edit(Edit::range_replacement(
-                                format!("\n{}", indent),
-                                fix_range,
-                            ))),
-                    );
-                }
+                diagnostics.push(
+                    Diagnostic::new(OneStatementPerLineViolation, range).with_fix(Fix::safe_edit(
+                        Edit::range_replacement(format!("\n{}", indent), fix_range),
+                    )),
+                );
             }
 
             prev_statement_line = Some(current_line);
@@ -193,7 +183,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for two statements on same line");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for two statements on same line"
+        );
     }
 
     #[test]
@@ -207,7 +201,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "Single statements per line should not cause violations");
+        assert!(
+            diagnostics.is_empty(),
+            "Single statements per line should not cause violations"
+        );
     }
 
     #[test]
@@ -220,7 +217,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "For loop header should not cause violations");
+        assert!(
+            diagnostics.is_empty(),
+            "For loop header should not cause violations"
+        );
     }
 
     #[test]
@@ -231,6 +231,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "Expected 1 violation for class-level fields on same line");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Expected 1 violation for class-level fields on same line"
+        );
     }
 }

@@ -75,13 +75,17 @@ fn test_input_multiple_variable_declarations() {
 
     // Verify we detect comma-separated violations
     assert!(
-        violations.iter().any(|v| v.line == 11 && v.message_type == "comma"),
+        violations
+            .iter()
+            .any(|v| v.line == 11 && v.message_type == "comma"),
         "Should detect comma-separated on line 11"
     );
 
     // Verify we detect same-line violations
     assert!(
-        violations.iter().any(|v| v.line == 12 && v.message_type == "same_line"),
+        violations
+            .iter()
+            .any(|v| v.line == 12 && v.message_type == "same_line"),
         "Should detect same-line on line 12"
     );
 }
