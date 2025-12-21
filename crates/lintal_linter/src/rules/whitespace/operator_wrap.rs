@@ -96,9 +96,7 @@ impl Rule for OperatorWrap {
         let all_children: Vec<_> = ts_node.children(&mut cursor).collect();
 
         // Filter out comments and whitespace (extra nodes)
-        let children: Vec<_> = all_children.iter()
-            .filter(|n| !n.is_extra())
-            .collect();
+        let children: Vec<_> = all_children.iter().filter(|n| !n.is_extra()).collect();
 
         if children.len() < 3 {
             return vec![];
@@ -114,7 +112,8 @@ impl Rule for OperatorWrap {
         // Skip comments to find the actual start of the right operand
         let actual_right_start = {
             let mut right_cursor = right.walk();
-            let first_non_extra = right.children(&mut right_cursor)
+            let first_non_extra = right
+                .children(&mut right_cursor)
                 .find(|child| !child.is_extra());
 
             if let Some(child) = first_non_extra {
@@ -147,7 +146,9 @@ impl Rule for OperatorWrap {
                 // Operator should be on new line (same line as right operand)
                 if op_line == left_end_line && op_line != right_start_line {
                     return vec![Diagnostic::new(
-                        OperatorShouldBeOnNewLine { operator: op_text.to_string() },
+                        OperatorShouldBeOnNewLine {
+                            operator: op_text.to_string(),
+                        },
                         op_range,
                     )];
                 }
@@ -156,7 +157,9 @@ impl Rule for OperatorWrap {
                 // Operator should be at end of line (same line as left operand)
                 if op_line == right_start_line && op_line != left_end_line {
                     return vec![Diagnostic::new(
-                        OperatorShouldBeOnPrevLine { operator: op_text.to_string() },
+                        OperatorShouldBeOnPrevLine {
+                            operator: op_text.to_string(),
+                        },
                         op_range,
                     )];
                 }
@@ -190,7 +193,9 @@ mod tests {
         let mut parser = JavaParser::new();
         let result = parser.parse(source).unwrap();
         let ctx = CheckContext::new(source);
-        let rule = OperatorWrap { option: WrapOption::Eol };
+        let rule = OperatorWrap {
+            option: WrapOption::Eol,
+        };
 
         let mut diagnostics = vec![];
         for node in TreeWalker::new(result.tree.root_node(), source) {
@@ -211,7 +216,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source_nl(source);
-        assert_eq!(diagnostics.len(), 1, "Operator at end of line should be violation with nl option");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Operator at end of line should be violation with nl option"
+        );
     }
 
     #[test]
@@ -226,7 +235,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source_nl(source);
-        assert!(diagnostics.is_empty(), "Operator on new line should be OK with nl option");
+        assert!(
+            diagnostics.is_empty(),
+            "Operator on new line should be OK with nl option"
+        );
     }
 
     #[test]
@@ -241,7 +253,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source_eol(source);
-        assert_eq!(diagnostics.len(), 1, "Operator on new line should be violation with eol option");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Operator on new line should be violation with eol option"
+        );
     }
 
     #[test]
@@ -256,7 +272,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source_eol(source);
-        assert!(diagnostics.is_empty(), "Operator at end of line should be OK with eol option");
+        assert!(
+            diagnostics.is_empty(),
+            "Operator at end of line should be OK with eol option"
+        );
     }
 
     #[test]
@@ -270,6 +289,9 @@ class Test {
 }
 "#;
         let diagnostics = check_source_nl(source);
-        assert!(diagnostics.is_empty(), "Same line expression should not cause violation");
+        assert!(
+            diagnostics.is_empty(),
+            "Same line expression should not cause violation"
+        );
     }
 }

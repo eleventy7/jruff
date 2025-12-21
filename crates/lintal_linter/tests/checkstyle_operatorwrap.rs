@@ -58,7 +58,10 @@ class Test {
     for v in &violations {
         println!("  Line {}", v.line);
     }
-    assert!(!violations.is_empty(), "Should find violation for operator at end of line");
+    assert!(
+        !violations.is_empty(),
+        "Should find violation for operator at end of line"
+    );
 }
 
 #[test]
@@ -83,8 +86,14 @@ fn test_operator_wrap_nl_option() {
     }
 
     // Should find violations on lines 23, 24, 32, 54, 67
-    assert!(violations.iter().any(|v| v.line == 23), "Should find violation on line 23");
-    assert!(violations.iter().any(|v| v.line == 24), "Should find violation on line 24");
+    assert!(
+        violations.iter().any(|v| v.line == 23),
+        "Should find violation on line 23"
+    );
+    assert!(
+        violations.iter().any(|v| v.line == 24),
+        "Should find violation on line 24"
+    );
 }
 
 #[test]
@@ -98,5 +107,8 @@ class Test {
 }
 "#;
     let violations = check_operator_wrap_nl(source);
-    assert!(violations.is_empty(), "Same line expressions should not cause violations");
+    assert!(
+        violations.is_empty(),
+        "Same line expressions should not cause violations"
+    );
 }
