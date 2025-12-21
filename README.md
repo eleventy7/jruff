@@ -8,13 +8,23 @@ lintal reads checkstyle.xml configuration files and can automatically fix many v
 
 ## Current Status
 
-The project is focused on safely autofixable cases to begin with, and aims for 100% compatibility with Checkstyle. Checkstyle test cases are downloaded during the testing build phase to validate compatibility.
+⚠️ Early Development — lintal is in active early development. Use at your own risk and always verify changes before committing.
 
-lintal is tested against real-world projects including [Aeron](https://github.com/aeron-io/aeron), [Artio](https://github.com/artiofix/artio), and [Agrona](https://github.com/aeron-io/agrona) to ensure zero false positives.
+The project focuses on safely autofixable cases and aims for 100% compatibility with Checkstyle. We validate against Checkstyle's own test suite (downloaded during testing) and run against real-world projects including [Aeron](https://github.com/aeron-io/aeron), [Artio](https://github.com/artiofix/artio), and [Agrona](https://github.com/aeron-io/agrona)  to catch false positives.
+
+### Why we built this
+
+In several projects I work on, we use restrictive (and somewhat non-traditional) Java checkstyle rules. Coding agents like Claude Code, Codex, and others rarely get the format correct, so a typical session involves the agent writing code, then spending time fixing checkstyle violations. lintal sits in the middle of that workflow:
+
+1. The agent writes code
+2. lintal reviews and fixes what it can (using the project's checkstyle rules)
+3. Checkstyle validates the result
+
+Since introducing lintal, we're spending less time on the checkstyle step—giving us readable, consistent code with faster iterations.
 
 ## Performance
 
-lintal is significantly faster than checkstyle due to native compilation and parallel processing.
+lintal is significantly faster than checkstyle due to native compilation and parallel processing (along with the Ruff heritage).
 
 **Benchmark vs Checkstyle 12.3.0** (same files, 21 of 24 supported rules, 10 runs each after warmup):
 
@@ -47,6 +57,16 @@ Run benchmarks yourself: `mise run benchmark`
 - Optional TOML overlay for fix-specific settings
 
 ## Installation
+
+lintal supports macOS and Linux. Windows support is a non-goal.
+
+| Distribution   | Status  | Command                                          |
+|----------------|---------|--------------------------------------------------|
+| GitHub Release | [v0.1.1](https://github.com/eleventy7/lintal/releases/tag/v0.1.1) | Direct download |
+| Homebrew       | Working | `brew tap eleventy7/lintal && brew install lintal` |
+| mise ubi       | Ready   | `mise use ubi:eleventy7/lintal`                  |
+
+### Build from source
 
 ```bash
 cargo install --path crates/lintal
