@@ -62,8 +62,14 @@ fn test_checkstyle_fixture() {
         println!("  Line {}", v.line);
     }
 
-    assert!(violations.iter().any(|v| v.line == 22), "Should find violation on line 22");
-    assert!(violations.iter().any(|v| v.line == 35), "Should find violation on line 35");
+    assert!(
+        violations.iter().any(|v| v.line == 22),
+        "Should find violation on line 22"
+    );
+    assert!(
+        violations.iter().any(|v| v.line == 35),
+        "Should find violation on line 35"
+    );
 }
 
 #[test]
@@ -99,5 +105,9 @@ class Test {
 }
 "#;
     let violations = check_simplify_boolean_return(source);
-    assert!(violations.is_empty(), "Should have no violations for valid code, got: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Should have no violations for valid code, got: {:?}",
+        violations
+    );
 }

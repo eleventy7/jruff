@@ -68,7 +68,8 @@ impl Rule for SimplifyBooleanReturn {
         } else {
             // It's an else clause, get its body child (block or statement)
             let mut cursor = alternative.walk();
-            alternative.children(&mut cursor)
+            alternative
+                .children(&mut cursor)
                 .find(|c| c.kind() == "block" || c.kind() == "return_statement")
                 .unwrap_or(alternative)
         };
@@ -110,7 +111,8 @@ impl SimplifyBooleanReturn {
 
         // Handle block with return statement
         let mut cursor = node.walk();
-        let children: Vec<_> = node.children(&mut cursor)
+        let children: Vec<_> = node
+            .children(&mut cursor)
             .filter(|c| !c.is_extra() && c.kind() != "{" && c.kind() != "}")
             .collect();
 
@@ -171,7 +173,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "if true else false should be violation");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "if true else false should be violation"
+        );
     }
 
     #[test]
@@ -188,7 +194,11 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "if false else true should be violation");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "if false else true should be violation"
+        );
     }
 
     #[test]
@@ -204,7 +214,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "No else clause should not be violation");
+        assert!(
+            diagnostics.is_empty(),
+            "No else clause should not be violation"
+        );
     }
 
     #[test]
@@ -221,7 +234,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "Non-literal return should not be violation");
+        assert!(
+            diagnostics.is_empty(),
+            "Non-literal return should not be violation"
+        );
     }
 
     #[test]
@@ -234,7 +250,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert!(diagnostics.is_empty(), "Simple return should not be violation");
+        assert!(
+            diagnostics.is_empty(),
+            "Simple return should not be violation"
+        );
     }
 
     #[test]
@@ -250,6 +269,10 @@ class Test {
 }
 "#;
         let diagnostics = check_source(source);
-        assert_eq!(diagnostics.len(), 1, "Bare return statements should be violation");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "Bare return statements should be violation"
+        );
     }
 }
