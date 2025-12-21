@@ -707,14 +707,8 @@ class Foo {
         let config = FileSuppressionsConfig::from_xml(xml);
 
         // Should suppress all rules for generated files
-        assert!(config.is_suppressed(
-            "some/path/generated-src/Foo.java",
-            "FinalLocalVariable"
-        ));
-        assert!(config.is_suppressed(
-            "some/path/generated-src/Bar.java",
-            "ModifierOrder"
-        ));
+        assert!(config.is_suppressed("some/path/generated-src/Foo.java", "FinalLocalVariable"));
+        assert!(config.is_suppressed("some/path/generated-src/Bar.java", "ModifierOrder"));
 
         // Should not suppress regular files
         assert!(!config.is_suppressed("src/main/java/Foo.java", "FinalLocalVariable"));
@@ -729,23 +723,14 @@ class Foo {
         let config = FileSuppressionsConfig::from_xml(xml);
 
         // Should suppress MissingJavadocMethod for test files
-        assert!(config.is_suppressed(
-            "src/test/java/FooTest.java",
-            "MissingJavadocMethod"
-        ));
+        assert!(config.is_suppressed("src/test/java/FooTest.java", "MissingJavadocMethod"));
         assert!(config.is_suppressed("src/test/java/BarTest.java", "MissingJavadocType"));
 
         // Should NOT suppress other rules for test files
-        assert!(!config.is_suppressed(
-            "src/test/java/FooTest.java",
-            "FinalLocalVariable"
-        ));
+        assert!(!config.is_suppressed("src/test/java/FooTest.java", "FinalLocalVariable"));
 
         // Should NOT suppress anything for main files
-        assert!(!config.is_suppressed(
-            "src/main/java/Foo.java",
-            "MissingJavadocMethod"
-        ));
+        assert!(!config.is_suppressed("src/main/java/Foo.java", "MissingJavadocMethod"));
     }
 
     #[test]
@@ -802,10 +787,7 @@ class Foo {
         ));
 
         // Test JavadocVariable suppression for test files
-        assert!(config.is_suppressed(
-            "aeron-client/src/test/java/BarTest.java",
-            "JavadocVariable"
-        ));
+        assert!(config.is_suppressed("aeron-client/src/test/java/BarTest.java", "JavadocVariable"));
 
         // Test package-info LineLength suppression
         assert!(config.is_suppressed(
@@ -814,10 +796,7 @@ class Foo {
         ));
 
         // Main files should not be suppressed for random rules
-        assert!(!config.is_suppressed(
-            "aeron-client/src/main/java/Foo.java",
-            "FinalLocalVariable"
-        ));
+        assert!(!config.is_suppressed("aeron-client/src/main/java/Foo.java", "FinalLocalVariable"));
     }
 
     #[test]

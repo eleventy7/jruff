@@ -612,7 +612,6 @@ class Test {
     fn test_real_file(path: &str) {
         use std::collections::HashSet;
 
-        let path = path;
         let source = match std::fs::read_to_string(path) {
             Ok(s) => s,
             Err(_) => {
