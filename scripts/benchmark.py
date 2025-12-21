@@ -93,9 +93,10 @@ def create_file_list(repo_path: Path) -> Path:
     """Create a temp file with list of Java files (excluding build/generated)."""
     file_list = PROJECT_ROOT / "target" / f"{repo_path.name}_files.txt"
     # Exclude build directories which contain generated code
+    # Use relative path from repo_path to avoid matching lintal's target/ directory
     java_files = sorted(
         f for f in repo_path.rglob("*.java")
-        if "/build/" not in str(f) and "/target/" not in str(f)
+        if "/build/" not in str(f.relative_to(repo_path))
     )
     file_list.write_text("\n".join(str(f) for f in java_files))
     return file_list
