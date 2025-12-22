@@ -97,6 +97,15 @@ jobs:
           cargo test --package lintal_linter --test checkstyle_finalparameters
           cargo test --package lintal_linter --test checkstyle_redundantmodifier
           cargo test --package lintal_linter --test checkstyle_finallocalvariable
+          cargo test --package lintal_linter --test checkstyle_arraytypestyle
+          cargo test --package lintal_linter --test checkstyle_upperell
+          cargo test --package lintal_linter --test checkstyle_redundantimport
+          cargo test --package lintal_linter --test checkstyle_unusedimports
+          cargo test --package lintal_linter --test checkstyle_onestatementperline
+          cargo test --package lintal_linter --test checkstyle_multiplevariabledeclarations
+          cargo test --package lintal_linter --test checkstyle_operatorwrap
+          cargo test --package lintal_linter --test checkstyle_simplifybooleanreturn
+          cargo test --package lintal_linter --test checkstyle_emptylineseparator
 
   # Real-world project tests (ensures lintal works on production codebases)
   real-world-tests:
