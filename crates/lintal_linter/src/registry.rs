@@ -50,10 +50,12 @@ impl RuleRegistry {
     fn register_builtins(&mut self) {
         use crate::rules::{
             ArrayTypeStyle, AvoidNestedBlocks, EmptyBlock, EmptyCatchBlock, EmptyForInitializerPad,
-            FileTabCharacter, FinalLocalVariable, FinalParameters, LeftCurly, MethodParamPad,
-            ModifierOrder, NeedBraces, NoWhitespaceAfter, NoWhitespaceBefore, ParenPad,
-            RedundantImport, RedundantModifier, RightCurly, SingleSpaceSeparator, TypecastParenPad,
-            UnusedImports, UpperEll, WhitespaceAfter, WhitespaceAround,
+            EmptyLineSeparator, FileTabCharacter, FinalLocalVariable, FinalParameters, LeftCurly,
+            MethodParamPad, ModifierOrder, MultipleVariableDeclarations, NeedBraces,
+            NoWhitespaceAfter, NoWhitespaceBefore, OneStatementPerLine, OperatorWrap, ParenPad,
+            RedundantImport, RedundantModifier, RightCurly, SimplifyBooleanReturn,
+            SingleSpaceSeparator, TypecastParenPad, UnusedImports, UpperEll, WhitespaceAfter,
+            WhitespaceAround,
         };
         // Whitespace rules
         self.register::<WhitespaceAround>();
@@ -66,6 +68,8 @@ impl RuleRegistry {
         self.register::<EmptyForInitializerPad>();
         self.register::<TypecastParenPad>();
         self.register::<FileTabCharacter>();
+        self.register::<OperatorWrap>();
+        self.register::<EmptyLineSeparator>();
         // Block rules
         self.register::<LeftCurly>();
         self.register::<RightCurly>();
@@ -84,6 +88,10 @@ impl RuleRegistry {
         // Import rules
         self.register::<RedundantImport>();
         self.register::<UnusedImports>();
+        // Coding rules
+        self.register::<OneStatementPerLine>();
+        self.register::<MultipleVariableDeclarations>();
+        self.register::<SimplifyBooleanReturn>();
     }
 
     /// Create a rule from a module name and properties.
