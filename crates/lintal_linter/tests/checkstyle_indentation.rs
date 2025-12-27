@@ -716,9 +716,29 @@ struct FixtureTestResult {
 }
 
 /// Helper to run a fixture test and report results.
+/// Get correct config overrides for files where header comments have wrong values.
+/// These overrides are based on the actual test configurations in IndentationCheckTest.java.
+fn get_config_overrides(file_name: &str) -> Option<HashMap<String, String>> {
+    match file_name {
+        // SwitchCasesAndEnums file header says caseIndent=4, but actual test uses caseIndent=2
+        "InputIndentationSwitchCasesAndEnums.java" => Some([
+            ("arrayInitIndent", "4"),
+            ("basicOffset", "2"),
+            ("braceAdjustment", "2"),
+            ("caseIndent", "2"),  // Corrected from 4 to 2
+            ("forceStrictCondition", "false"),
+            ("lineWrappingIndentation", "4"),
+            ("tabWidth", "4"),
+            ("throwsIndent", "4"),
+        ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()),
+        _ => None,
+    }
+}
+
 fn run_fixture_test(file_name: &str) -> Option<FixtureTestResult> {
     let source = load_indentation_fixture(file_name)?;
-    let config = parse_fixture_config(&source);
+    let config = get_config_overrides(file_name)
+        .unwrap_or_else(|| parse_fixture_config(&source));
     let expected = parse_expected_violations(&source);
     let actual = check_indentation_with_config(&source, &config);
 
@@ -735,7 +755,8 @@ fn debug_fixture(file_name: &str) {
         return;
     };
 
-    let config = parse_fixture_config(&source);
+    let config = get_config_overrides(file_name)
+        .unwrap_or_else(|| parse_fixture_config(&source));
     eprintln!("Config: {:?}", config);
 
     let expected = parse_expected_violations(&source);
@@ -863,6 +884,21 @@ throws Exception {
 #[test]
 fn test_debug_classes_methods() {
     debug_fixture("InputIndentationClassesMethods.java");
+}
+
+#[test]
+fn test_debug_switch_cases_enums() {
+    debug_fixture("InputIndentationSwitchCasesAndEnums.java");
+}
+
+#[test]
+fn test_debug_code_blocks1() {
+    debug_fixture("InputIndentationCodeBlocks1.java");
+}
+
+#[test]
+fn test_debug_code_blocks2() {
+    debug_fixture("InputIndentationCodeBlocks2.java");
 }
 
 /// Test Valid* fixtures - these should have minimal/no violations
@@ -1127,4 +1163,44 @@ fn test_debug_lambda_child_same_line() {
 #[test]
 fn test_debug_strict_condition() {
     debug_fixture("InputIndentationStrictCondition.java");
+}
+
+#[test]
+fn test_debug_chained_method_calls() {
+    debug_fixture("InputIndentationChainedMethodCalls.java");
+}
+
+#[test]
+fn test_debug_annotation_incorrect() {
+    debug_fixture("InputIndentationAnnotationIncorrect.java");
+}
+
+#[test]
+fn test_debug_method_call_line_wrap() {
+    debug_fixture("InputIndentationMethodCallLineWrap.java");
+}
+
+#[test]
+fn test_debug_lambda3() {
+    debug_fixture("InputIndentationLambda3.java");
+}
+
+#[test]
+fn test_debug_ann_arr_init() {
+    debug_fixture("InputIndentationAnnArrInit.java");
+}
+
+#[test]
+fn test_debug_lambda7() {
+    debug_fixture("InputIndentationLambda7.java");
+}
+
+#[test]
+fn test_debug_valid_method_indent1() {
+    debug_fixture("InputIndentationValidMethodIndent1.java");
+}
+
+#[test]
+fn test_debug_members() {
+    debug_fixture("InputIndentationMembers.java");
 }
