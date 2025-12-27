@@ -1204,3 +1204,8 @@ fn test_debug_valid_method_indent1() {
 fn test_debug_members() {
     debug_fixture("InputIndentationMembers.java");
 }
+
+#[test]
+fn test_debug_multiline() {
+    debug_fixture("InputIndentationMultilineStatements.java");
+}

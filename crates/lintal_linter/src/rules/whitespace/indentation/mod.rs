@@ -1756,7 +1756,9 @@ impl Indentation {
             }
             "instanceof_expression" => self.check_instanceof_expression(ctx, node, indent),
             "switch_expression" => self.check_switch_statement(ctx, node, indent),
-            "binary_expression" => self.check_binary_expression(ctx, node, indent),
+            "binary_expression" | "ternary_expression" => {
+                self.check_binary_expression(ctx, node, indent)
+            }
             _ => {
                 // Recursively check children for nested expressions
                 for child in node.children() {
@@ -1766,20 +1768,22 @@ impl Indentation {
         }
     }
 
-    /// Check indentation of binary expression continuations.
+    /// Check indentation of binary/ternary expression continuations.
     fn check_binary_expression(&self, ctx: &HandlerContext, node: &CstNode, indent: &IndentLevel) {
         let expr_line = self.line_no(ctx, node);
-        // Binary expression continuations should be at the current indent level (already line-wrapped)
-        // or at the next line-wrap level
-        let acceptable_indent = indent.combine(&indent.with_offset(self.line_wrapping_indentation));
+        let expr_start = ctx.get_line_start(expr_line);
+
+        // For continuation lines, expected indent is expr_start + lineWrappingIndentation
+        // This anchors from the actual expression start, not the passed indent
+        let expected_indent = IndentLevel::new(expr_start).with_offset(self.line_wrapping_indentation);
 
         for child in node.children() {
             let child_line = self.line_no(ctx, &child);
             if child_line > expr_line && ctx.is_on_start_of_line(&child) {
                 let actual = ctx.get_line_start(child_line);
                 // Binary operators and operands on continuation lines
-                if !ctx.is_indent_acceptable(actual, &acceptable_indent) {
-                    ctx.log_child_error(&child, "expr", actual, indent);
+                if !ctx.is_indent_acceptable(actual, &expected_indent) {
+                    ctx.log_child_error(&child, "expr", actual, &expected_indent);
                 }
             }
 
