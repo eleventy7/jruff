@@ -1,35 +1,35 @@
 # Indentation Rule Improvement Plan
 
-**Current Status:** 85.3% detection rate (125 missing, 59 extra)
-**Exact Matches:** 121/174 files (69.5%)
-**Remaining:** 53 files to fix
+**Current Status:** 83.7% detection rate (139 missing, 20 extra)
+**Exact Matches:** 125/174 files (71.8%)
 **Goal:** 100% - exact match on all 174 test fixtures
 
-## Priority Categories
+## Recent Fixes
 
-### 1. HIGH IMPACT - Lenient Mode False Positives (8+ extra each)
+The following lenient mode issues have been fixed:
+- Use base indent for lenient checking in binary expressions
+- Pass base argument indent for nested method invocations
+- Use new_indent for type/lparen continuation checks
+- Use lenient check for method name continuation
+- **Anonymous class body indent**: Accept multiple levels including `new + basicOffset` for over-indented anonymous classes in method arguments (fixes StrictCondition lines 9, 11)
 
-These files show we're using STRICT checking when checkstyle uses LENIENT (>=min):
+## Remaining Extra Violations (20)
 
 | File | Extra | Issue |
 |------|-------|-------|
-| InputIndentationMembers.java | 8 | Method chains in field initializers |
-| InputIndentationIfAndParameter.java | 8 | Method params/args continuation |
-| InputIndentationLambda3.java | 6 | Lambda in method args |
-| InputIndentationLambda2.java | 4 | Lambda in method args |
-| InputIndentationLambda4.java | 4 | Lambda in method args |
-| InputIndentationChainedMethodCalls.java | 4 | Method chains |
-
-**Debug commands:**
-```bash
-cargo test --package lintal_linter --test checkstyle_indentation test_debug_members -- --nocapture
-cargo test --package lintal_linter --test checkstyle_indentation test_debug_chained_method_calls -- --nocapture
-cargo test --package lintal_linter --test checkstyle_indentation test_debug_lambda3 -- --nocapture
-```
-
-**Root cause:** In `check_object_creation_expression` we changed to strict checking for arguments (line 2497). Need to be more selective - only use strict for OVER-indentation, not under-indentation in lenient mode.
+| InputIndentationMembers.java | 1 | Nested method call argument indent (line 54, `exp:>=14`) |
+| InputIndentationCodeBlocks2.java | 1 | Unknown |
+| InputIndentationAnnotationArrayInitOldStyle.java | 1 | Annotation array init |
+| InputIndentationTryWithResourcesStrict.java | 1 | Try-with-resources |
+| InputIndentationTryResourcesNotStrict1.java | 4 | Try-with-resources lenient mode |
+| InputIndentationTextBlock.java | 3 | Text block handling |
+| Various DIFF files | ~9 | Mixed missing/extra issues |
 
 **Pattern to look for in test files:** `exp:>=N` means lenient mode (accept N or higher).
+
+### Members.java Line 54 Issue
+
+The nested method call argument at line 54 (`new SecondFieldClassWithVeryVeryVeryLongName`) is at indent 19, expected `>=14`. We check against `combined_arg_indent` (20), but in lenient mode should accept >= 14. Attempted fix with `lenient_arg_indent = combined_arg_indent.combine(indent)` caused regressions elsewhere - needs more targeted approach.
 
 ---
 

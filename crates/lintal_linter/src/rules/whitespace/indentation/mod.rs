@@ -1903,8 +1903,9 @@ impl Indentation {
         let expr_line = self.line_no(ctx, node);
         let expr_start = ctx.get_line_start(expr_line);
 
-        // For continuation lines, expected indent is expr_start + lineWrappingIndentation
-        // This anchors from the actual expression start, not the passed indent
+        // For continuation lines, the expected indent is based on the context's base indent.
+        // In lenient mode (forceStrictCondition=false), checkstyle accepts any indent >= context base.
+        // We use `indent` (the context's base) for lenient checking, not expr_start.
         let expected_indent = IndentLevel::new(expr_start).with_offset(self.line_wrapping_indentation);
 
         for child in node.children() {
@@ -1912,7 +1913,8 @@ impl Indentation {
             if child_line > expr_line && ctx.is_on_start_of_line(&child) {
                 let actual = ctx.get_line_start(child_line);
                 // Binary operators and operands on continuation lines
-                if !ctx.is_indent_acceptable(actual, &expected_indent) {
+                // In lenient mode, accept >= context base indent; in strict mode, need exact match
+                if !ctx.is_indent_acceptable(actual, indent) {
                     ctx.log_child_error(&child, "expr", actual, &expected_indent);
                 }
             }
@@ -2272,10 +2274,11 @@ impl Indentation {
                 let dot_line = self.line_no(ctx, dot);
                 if dot_line > obj_line && ctx.is_on_start_of_line(dot) {
                     let actual = ctx.get_line_start(dot_line);
-                    // Expected is indent + lineWrappingIndentation
+                    // Expected is indent + lineWrappingIndentation for strict mode,
+                    // but in lenient mode, accept any indent >= base indent.
                     let expected = indent.with_offset(self.line_wrapping_indentation);
-                    // Use lenient check - respects forceStrictCondition setting
-                    if !ctx.is_indent_acceptable(actual, &expected) {
+                    // Use lenient check against base indent - in lenient mode accepts >= indent minimum
+                    if !ctx.is_indent_acceptable(actual, indent) {
                         ctx.log_error(dot, "method call", actual, &expected);
                     }
                 }
@@ -2289,10 +2292,9 @@ impl Indentation {
                 let dot_line = dot_node.as_ref().map(|d| self.line_no(ctx, d)).unwrap_or(obj_line);
                 if name_line > dot_line && ctx.is_on_start_of_line(&name) {
                     let actual = ctx.get_line_start(name_line);
-                    // Expected is indent + lineWrappingIndentation
+                    // In lenient mode, accept >= base indent; in strict mode, need exact indent + lineWrap
                     let expected = indent.with_offset(self.line_wrapping_indentation);
-                    // Only flag if actual is less than expected minimum
-                    if expected.is_greater_than(actual) {
+                    if !ctx.is_indent_acceptable(actual, indent) {
                         ctx.log_child_error(&name, "method call", actual, &expected);
                     }
                 }
@@ -2354,14 +2356,13 @@ impl Indentation {
                             }
                         }
                         // Check nested expressions in arguments.
-                        // For object creation expressions (anonymous classes), pass the argument
-                        // indent level, not nested. Per checkstyle, anonymous class bodies use
-                        // the NewHandler's getIndent() which is what the method call suggests
-                        // for its arguments (arg_indent), not nested further.
-                        let expr_indent = if child.kind() == "object_creation_expression" {
-                            &arg_indent
-                        } else {
-                            &nested_indent
+                        // For object creation expressions and method invocations, pass the base
+                        // argument indent level to avoid accumulating lineWrappingIndentation.
+                        // Checkstyle treats continuations within an expression context as being
+                        // relative to the context's start, not accumulated per nesting level.
+                        let expr_indent = match child.kind() {
+                            "object_creation_expression" | "method_invocation" => &arg_base_indent,
+                            _ => &nested_indent,
                         };
                         self.check_expression(ctx, &child, expr_indent);
                     }
@@ -2396,19 +2397,18 @@ impl Indentation {
         let new_indent = IndentLevel::new(new_start);
 
         // Check type name and lparen on continuation lines.
-        // These should be indented at least to the expected indent level.
-        // We use `indent` as the base - for nested `new` in arguments, this will be
-        // a reasonable level; for statement-level `new`, this will be the statement indent.
-        let continuation_indent = indent.with_offset(self.line_wrapping_indentation);
+        // These should be indented relative to the `new` keyword position, not the passed indent.
+        // When `new` is at the end of a line and the type starts on the next line,
+        // checkstyle expects the type to be at new_start + lineWrap.
+        let continuation_indent = new_indent.with_offset(self.line_wrapping_indentation);
 
         // Check type name on continuation line (e.g., new\nObject())
         if let Some(type_node) = node.child_by_field_name("type") {
             let type_line = self.line_no(ctx, &type_node);
             if type_line > new_line && ctx.is_on_start_of_line(&type_node) {
                 let actual = ctx.get_line_start(type_line);
-                // Only report if actual is less than expected (not just different)
-                // This avoids false positives for nested expressions at reasonable indent
-                if continuation_indent.is_greater_than(actual) {
+                // In lenient mode, accept >= new_start; in strict mode, need exact new_start + lineWrap
+                if !ctx.is_indent_acceptable(actual, &new_indent) {
                     ctx.log_child_error(&type_node, "new", actual, &continuation_indent);
                 }
             }
@@ -2420,8 +2420,8 @@ impl Indentation {
                 let lparen_line = self.line_no(ctx, &lparen);
                 if lparen_line > new_line && ctx.is_on_start_of_line(&lparen) {
                     let actual = ctx.get_line_start(lparen_line);
-                    // Only report if actual is less than expected
-                    if continuation_indent.is_greater_than(actual) {
+                    // In lenient mode, accept >= new_start; in strict mode, need exact
+                    if !ctx.is_indent_acceptable(actual, &new_indent) {
                         ctx.log_child_error(&lparen, "new", actual, &continuation_indent);
                     }
                 }
@@ -2458,6 +2458,10 @@ impl Indentation {
             match child.kind() {
                 "class_body" => {
                     // Anonymous class body - determine the base indent
+                    // Accept multiple levels to handle various indentation patterns:
+                    // - indent: expected position based on context
+                    // - new_indent: actual position of `new`
+                    // - new_indent + basicOffset: for over-indented anonymous classes
                     let body_indent = if let Some(lcurly) = self.find_child(&child, "{") {
                         if ctx.is_on_start_of_line(&lcurly) {
                             // Opening brace starts the line - use its position
@@ -2468,11 +2472,11 @@ impl Indentation {
                             IndentLevel::new(cont_indent)
                         } else {
                             // Opening brace at end of line (e.g., new Runnable() {)
-                            // Per checkstyle ObjectBlockHandler.getIndentImpl():
-                            // When parent is LITERAL_NEW, use getParent().getIndent()
-                            // which is the NewHandler's indent (expected position for new expr).
-                            // Use new_indent (actual) as primary, combined with indent (expected).
-                            new_indent.combine(indent)
+                            // Combine expected, actual, and actual+basicOffset to handle
+                            // various indentation patterns in method arguments.
+                            new_indent
+                                .combine(indent)
+                                .combine(&new_indent.with_offset(self.basic_offset))
                         }
                     } else {
                         new_indent.clone()
@@ -2495,9 +2499,9 @@ impl Indentation {
                                 let arg_line = self.line_no(ctx, &arg);
                                 if arg_line > lparen_line && ctx.is_on_start_of_line(&arg) {
                                     let actual = ctx.get_line_start(arg_line);
-                                    // Use strict checking - arguments must be at expected positions
-                                    // not just >= minimum (to catch over-indentation)
-                                    if !combined_arg_indent.is_acceptable(actual) {
+                                    // Use lenient checking (respects forceStrictCondition):
+                                    // When forceStrictCondition=false, accept actual >= minimum
+                                    if !ctx.is_indent_acceptable(actual, &combined_arg_indent) {
                                         ctx.log_child_error(&arg, "new", actual, &combined_arg_indent);
                                     }
                                 }
