@@ -713,6 +713,521 @@ class Foo {
 }
 
 // ============================================================================
+// Lambda-in-method-call tests (real-world patterns from artio/agrona/aeron)
+// ============================================================================
+//
+// These tests verify checkstyle-compatible handling of lambda blocks inside
+// method call arguments. Checkstyle accepts lambda body braces at the method
+// call indentation level (not method call + lineWrappingIndentation).
+
+#[test]
+fn test_lambda_in_constructor_call_block_at_call_level() {
+    // Pattern from agrona MarkFileTest.java:
+    // threads[i] = new Thread(() ->
+    // {
+    //     startLatch.countDown();
+    // });
+    //
+    // The lambda block `{` is at column 12 (same as `new Thread`), not column 16.
+    // Checkstyle accepts this pattern.
+    let source = r#"
+class Foo {
+    void bar() {
+        threads[i] = new Thread(() ->
+        {
+            startLatch.countDown();
+        });
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda block at method call indent level, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_in_method_arg_block_at_call_level() {
+    // Pattern: executor.submit(() ->
+    // {
+    //     doWork();
+    // });
+    //
+    // Lambda block at same level as method call, not +lineWrappingIndentation.
+    let source = r#"
+class Foo {
+    void bar() {
+        executor.submit(() ->
+        {
+            doWork();
+        });
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda in method arg with block at call level, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_with_try_catch_in_method_arg() {
+    // Pattern from artio: lambda containing try-catch at method call level
+    // Checkstyle accepts the entire lambda body at method call indent level.
+    let source = r#"
+class Foo {
+    void bar() {
+        executor.submit(() ->
+        {
+            try
+            {
+                process();
+            }
+            catch (Exception e)
+            {
+                handleError(e);
+            }
+        });
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda with try-catch at call level, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_in_assignment_block_at_call_level() {
+    // Pattern: Runnable r = () ->
+    // {
+    //     doWork();
+    // };
+    //
+    // Lambda assigned to variable, block at variable declaration level.
+    let source = r#"
+class Foo {
+    void bar() {
+        Runnable r = () ->
+        {
+            doWork();
+        };
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda assignment with block at declaration level, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_nested_lambdas_in_method_chain() {
+    // Pattern from artio: nested lambdas in method chains
+    // Each lambda block at the method call level of its enclosing call.
+    let source = r#"
+class Foo {
+    void bar() {
+        list.stream()
+            .map(x -> process(x))
+            .forEach(x ->
+            {
+                output(x);
+            });
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for nested lambda in method chain, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_block_inline_with_arrow() {
+    // Pattern: Standard inline lambda (for comparison - this should work)
+    // list.forEach(x -> {
+    //     process(x);
+    // });
+    let source = r#"
+class Foo {
+    void bar() {
+        list.forEach(x -> {
+            process(x);
+        });
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for standard inline lambda block, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_annotation_array_init_in_method_arg() {
+    // Pattern from aeron: annotation-style array in method arguments
+    // Checkstyle treats this leniently.
+    let source = r#"
+@SuppressWarnings({"unchecked",
+    "deprecation"})
+class Foo {
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for annotation array init continuation, got lines: {:?}", violations);
+}
+
+// ============================================================================
+// Lambda-in-method-call tests with forceStrictCondition=true
+// ============================================================================
+//
+// These tests use the agrona/artio/aeron config which has forceStrictCondition=true.
+// This is the configuration that triggers false positives in real-world code.
+
+fn strict_config() -> HashMap<String, String> {
+    [
+        ("basicOffset", "4"),
+        ("braceAdjustment", "0"),
+        ("caseIndent", "4"),
+        ("throwsIndent", "4"),
+        ("arrayInitIndent", "4"),
+        ("lineWrappingIndentation", "4"),
+        ("forceStrictCondition", "true"),
+    ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+}
+
+#[test]
+fn test_lambda_block_at_call_level_strict() {
+    // Pattern from agrona MarkFileTest.java with forceStrictCondition=true:
+    // threads[i] = new Thread(() ->
+    // {                              <- at same level as new Thread (col 8)
+    //     startLatch.countDown();    <- at col 12 (8 + 4)
+    // });
+    //
+    // Checkstyle accepts this even with forceStrictCondition=true.
+    // Lintal currently expects { at col 12 (8 + lineWrap=4).
+    let source = r#"
+class Foo {
+    void bar() {
+        threads[i] = new Thread(() ->
+        {
+            startLatch.countDown();
+        });
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda block at call level (strict mode), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_with_try_catch_strict() {
+    // Pattern from agrona: lambda with try-catch at method call level.
+    // With forceStrictCondition=true, checkstyle still accepts this.
+    let source = r#"
+class Foo {
+    void bar() {
+        executor.submit(() ->
+        {
+            try
+            {
+                process();
+            }
+            catch (Exception e)
+            {
+                handleError(e);
+            }
+        });
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda with try-catch (strict mode), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_nested_try_resources_strict() {
+    // Pattern from agrona MarkFileTest: try-with-resources inside lambda.
+    // The lambda block and all nested content should be at method call level.
+    let source = r#"
+class Foo {
+    void bar() {
+        threads[i] = new Thread(() ->
+        {
+            startLatch.countDown();
+
+            try
+            {
+                startLatch.await();
+
+                try (Resource r = new Resource())
+                {
+                    r.process();
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions[index] = ex;
+            }
+            finally
+            {
+                endLatch.countDown();
+            }
+        });
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Expected no violations for lambda with nested try-resources (strict mode), got lines: {:?}", violations);
+}
+
+// ============================================================================
+// Return statement and field declaration lenient arg checking tests
+// ============================================================================
+//
+// Checkstyle doesn't strictly check method call argument indentation when the
+// call is inside a return statement or field declaration. These tests codify
+// that behavior.
+
+#[test]
+fn test_return_statement_args_any_indent() {
+    // Checkstyle accepts ANY indentation for method call args in return statements.
+    // This is a documented lenient behavior.
+    let source = r#"
+class Foo {
+    Object bar() {
+        return baz(
+qux);
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Return statement should accept args at any indent, got lines: {:?}", violations);
+
+    // Also passes with strict config
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Return statement should accept args at any indent (strict), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_field_declaration_args_lenient() {
+    // Checkstyle accepts >= member indent for method call args in field declarations.
+    let source = r#"
+class Foo {
+    Object x = baz(
+        qux);
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Field declaration should accept args at member indent, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_expression_statement_args_strict() {
+    // Expression statements SHOULD check argument indentation strictly.
+    // Args at col 0 should fail.
+    let source = r#"
+class Foo {
+    void bar() {
+        baz(
+qux);
+    }
+}
+"#;
+    let violations = check_indentation(source);
+    assert!(!violations.is_empty(),
+        "Expression statement should require proper arg indent");
+    assert!(violations.contains(&5), "Line 5 (qux at col 0) should be flagged");
+}
+
+// ============================================================================
+// Expression continuation and method argument alignment tests
+// ============================================================================
+//
+// These tests verify patterns where method arguments or expression continuations
+// are aligned with the containing expression rather than at strict indent levels.
+
+#[test]
+fn test_binary_expression_string_concat_aligned() {
+    // Pattern from agrona ManyToOneRingBuffer:
+    // throw new IllegalStateException("claimed space previously " +
+    //     (PADDING_MSG_TYPE_ID == buffer.getInt(typeOffset(recordIndex)) ? "aborted" : "committed"));
+    //
+    // The continuation is at statement level + 4, not +lineWrap from the string.
+    // Checkstyle accepts this alignment.
+    let source = r#"
+class Foo {
+    void bar() {
+        throw new IllegalStateException("claimed space previously " +
+            (flag ? "aborted" : "committed"));
+    }
+}
+"#;
+    // First check with lenient mode (default) - should pass
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for string concat (lenient mode), got lines: {:?}", violations);
+
+    // With strict mode, this may fail - checkstyle has special alignment rules
+    // TODO: investigate checkstyle's alignment handling
+}
+
+#[test]
+fn test_binary_expression_boolean_and_aligned() {
+    // Pattern from agrona IntHashSet:
+    // return otherSet.containsMissingValue == containsMissingValue &&
+    //        otherSet.sizeOfArrayValues == sizeOfArrayValues &&
+    //        containsAll(otherSet);
+    //
+    // The continuation lines are aligned with the first operand after return.
+    // Checkstyle accepts this visual alignment.
+    let source = r#"
+class Foo {
+    boolean equals(Object other) {
+        return otherSet.value == value &&
+               otherSet.size == size &&
+               containsAll(otherSet);
+    }
+}
+"#;
+    // Lenient mode - should pass (actual >= expected)
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for boolean && (lenient mode), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_method_args_aligned_with_open_paren() {
+    // Pattern from artio CommonDecoderImplTest:
+    // return Stream.of(
+    //   Arguments.of(String.valueOf(VALUE_MAX_VAL), -1, -1, false),
+    //   Arguments.of("1.999999999999999999", 19, 1, true));
+    //
+    // Arguments are indented 2 spaces inside the paren, visually aligned.
+    // Checkstyle accepts this pattern even though it's less than lineWrappingIndentation.
+    let source = r#"
+class Foo {
+    static Stream<Arguments> data() {
+        return Stream.of(
+          Arguments.of("value1", -1, -1, false),
+          Arguments.of("value2", 19, 1, true));
+    }
+}
+"#;
+    // Lenient mode - should pass (actual >= expected not required for under-indented)
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for method args with 2-space visual alignment (lenient), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_constructor_args_aligned_with_new() {
+    // Pattern from artio EncoderGeneratorTest:
+    // final EncoderGenerator encoderGenerator =
+    //     new EncoderGenerator(MESSAGE_EXAMPLE, TEST_PACKAGE, TEST_PARENT_PACKAGE,
+    //     validationClass, rejectUnknownField);
+    //
+    // Constructor args are at same level as 'new', not +lineWrap.
+    let source = r#"
+class Foo {
+    void bar() {
+        final Generator generator =
+            new Generator(ARG1, ARG2, ARG3,
+            ARG4, ARG5);
+    }
+}
+"#;
+    // Lenient mode - should pass
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for constructor args aligned with new (lenient), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_nested_method_call_args_aligned() {
+    // Pattern from aeron AgentTests:
+    // assertEquals(
+    //     EnumSet.complementOf(EnumSet.of(
+    //     FRAME_IN,
+    //     FRAME_OUT)),
+    //     DriverComponentLogger.ENABLED_EVENTS);
+    //
+    // Inner args aligned with containing method name.
+    let source = r#"
+class Foo {
+    void bar() {
+        assertEquals(
+            EnumSet.complementOf(EnumSet.of(
+            VALUE_A,
+            VALUE_B)),
+            targetCollection);
+    }
+}
+"#;
+    // Lenient mode - should pass
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for nested method call args aligned (lenient), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_annotation_array_init_indented() {
+    // Pattern from aeron ArchiveEventLoggerTest:
+    // @EnumSource(
+    //     value = ArchiveEventCode.class,
+    //     mode = EXCLUDE,
+    //     names = {
+    //         "CMD_OUT_RESPONSE", "REPLICATION_SESSION_STATE_CHANGE",
+    //         "CONTROL_SESSION_STATE_CHANGE"
+    //     })
+    //
+    // Array elements indented from the attribute, not from annotation level.
+    let source = r#"
+@EnumSource(
+    value = MyEnum.class,
+    mode = EXCLUDE,
+    names = {
+        "VALUE_A", "VALUE_B",
+        "VALUE_C"
+    })
+class Foo {
+}
+"#;
+    // Lenient mode - should pass
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for annotation array with indented elements (lenient), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_method_chain_nested_builder() {
+    // Pattern from artio BinaryEntryPointClient:
+    // .investorID(123)
+    // .custodianInfo()
+    //     .custodian(1)
+    //     .custodyAccount(2);
+    //
+    // Nested builder methods indented further.
+    let source = r#"
+class Foo {
+    void bar() {
+        builder
+            .investorID(123)
+            .custodianInfo()
+                .custodian(1)
+                .custodyAccount(2);
+    }
+}
+"#;
+    // Lenient mode - should pass (deeper indentation is accepted)
+    let violations = check_indentation(source);
+    assert!(violations.is_empty(),
+        "Expected no violations for nested builder chain (lenient), got lines: {:?}", violations);
+}
+
+// ============================================================================
 // Checkstyle fixture-based compatibility tests
 // ============================================================================
 

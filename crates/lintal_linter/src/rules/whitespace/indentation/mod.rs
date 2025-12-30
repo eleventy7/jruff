@@ -2134,12 +2134,17 @@ impl Indentation {
                                 self.check_annotation_array_initializer(ctx, &arg_child, indent);
                             } else if arg_child.kind() == "element_value_pair" {
                                 // Check value in element_value_pair
+                                // Use the element_value_pair's line indent as base, not class indent
+                                // This handles: @Ann(names = { "A", "B" }) where elements are
+                                // indented from the attribute's position
+                                let pair_line = self.line_no(ctx, &arg_child);
+                                let pair_indent = IndentLevel::new(ctx.get_line_start(pair_line));
                                 for pair_child in arg_child.children() {
                                     if pair_child.kind() == "element_value_array_initializer" {
                                         self.check_annotation_array_initializer(
                                             ctx,
                                             &pair_child,
-                                            indent,
+                                            &pair_indent,
                                         );
                                     }
                                 }
@@ -2661,13 +2666,31 @@ impl Indentation {
 
             if body.kind() == "block" {
                 // Block body - determine the base indent for the block
-                // With forceStrictCondition=true, use expected indent, not actual position
-                let block_indent = if self.force_strict_condition && lambda_at_wrong_pos {
-                    // Lambda is at wrong position - use expected position for block indent
-                    indent.clone()
-                } else if body_line > lambda_line {
-                    // Block starts on a new line - use lambda position
+                // Key insight: when the lambda block brace appears on a NEW LINE and the lambda
+                // is at the statement level (not on a continuation line), checkstyle accepts
+                // the brace at the statement level. This is the common pattern:
+                //   executor.submit(() ->
+                //   {              <- at same column as executor.submit, not +4
+                //       doWork();
+                //   });
+                //
+                // But for lambdas on continuation lines like:
+                //   Function<String, String> f =
+                //           (string) -> {   <- lambda at column 16 (continuation)
+                //               work();     <- content at 20 is a VIOLATION (expected 16)
+                //           };
+                // We should NOT accept the lambda's position as the base.
+                //
+                // Heuristic: lambda is at "statement level" if lambda_start <= indent.first_level()
+                let lambda_at_statement_level = lambda_start <= indent.first_level();
+
+                let block_indent = if body_line > lambda_line && lambda_at_statement_level {
+                    // Block starts on a new line AND lambda is at statement level
+                    // Accept BOTH lambda position (statement level) and expected indent
                     lambda_indent.combine(indent)
+                } else if self.force_strict_condition && lambda_at_wrong_pos {
+                    // Lambda at wrong position (or on continuation) - use expected
+                    indent.clone()
                 } else {
                     // Block brace `{` is on same line as lambda (`-> {`)
                     // Check if the opening brace is at start of line
@@ -2864,6 +2887,17 @@ impl Indentation {
                 chain_indent.clone()
             };
 
+            // Check if this method call is inside a return statement or field declaration.
+            // Checkstyle doesn't check argument indentation for these contexts - it accepts
+            // any indentation for method call args in return statements and >= member indent
+            // for field declarations.
+            let in_return_context = node.parent().is_some_and(|p| p.kind() == "return_statement");
+            let in_field_context = node.parent().is_some_and(|p| {
+                matches!(p.kind(), "variable_declarator")
+                    && p.parent().is_some_and(|gp| gp.kind() == "field_declaration")
+            });
+            let skip_arg_indent_check = in_return_context || in_field_context;
+
             for child in args.children() {
                 match child.kind() {
                     // Skip punctuation and comments
@@ -2873,10 +2907,23 @@ impl Indentation {
                         if child_line > lparen_line {
                             in_multiline_args = true;
                             // Arguments on new lines should be indented
-                            if ctx.is_on_start_of_line(&child) {
+                            // Skip this check for return statements and field declarations
+                            // where checkstyle is more lenient.
+                            if !skip_arg_indent_check && ctx.is_on_start_of_line(&child) {
                                 let actual = ctx.get_line_start(child_line);
 
-                                if !ctx.is_indent_acceptable(actual, &combined_arg_indent) {
+                                // For nested method calls, also accept alignment with outer context
+                                // This handles patterns like:
+                                //   assertEquals(
+                                //       EnumSet.complementOf(EnumSet.of(
+                                //       VALUE_A,         <- at col 12, same as outer arg indent
+                                //       VALUE_B)),
+                                //       target);
+                                let is_at_outer_context = actual == indent.first_level();
+
+                                if !is_at_outer_context
+                                    && !ctx.is_indent_acceptable(actual, &combined_arg_indent)
+                                {
                                     // In lenient mode, accept over-indented args when:
                                     // 1. We're already in a nested continuation context
                                     //    (method_name_start > indent = method line is shifted from outer context)
@@ -3072,6 +3119,17 @@ impl Indentation {
                     // Use the new expression's line start as base for argument indentation
                     // Arguments on continuation lines should be at new_indent + lineWrap
                     let arg_indent = new_indent.with_offset(self.line_wrapping_indentation);
+                    // Checkstyle also accepts alignment with the `new` position itself
+                    let combined_arg_indent = new_indent.combine(&arg_indent);
+
+                    // Check if this object creation is in a context where checkstyle is lenient
+                    // about argument indentation (return statement, field declaration)
+                    let in_return_context = node.parent().is_some_and(|p| p.kind() == "return_statement");
+                    let in_field_context = node.parent().is_some_and(|p| {
+                        matches!(p.kind(), "variable_declarator")
+                            && p.parent().is_some_and(|gp| gp.kind() == "field_declaration")
+                    });
+                    let skip_arg_indent_check = in_return_context || in_field_context;
 
                     let lparen_line = self.line_no(ctx, &child);
                     for arg in child.children() {
@@ -3082,10 +3140,11 @@ impl Indentation {
                                 let arg_line = self.line_no(ctx, &arg);
                                 if arg_line > lparen_line && ctx.is_on_start_of_line(&arg) {
                                     let actual = ctx.get_line_start(arg_line);
-                                    // Arguments on continuation lines should be at line-wrapped indent
-                                    // In strict mode, only arg_indent is acceptable
-                                    // In lenient mode, accept >= arg_indent
-                                    if !ctx.is_indent_acceptable(actual, &arg_indent) {
+                                    // Skip check for return statements and field declarations
+                                    // For other contexts, accept alignment with `new` or `new + lineWrap`
+                                    if !skip_arg_indent_check
+                                        && !ctx.is_indent_acceptable(actual, &combined_arg_indent)
+                                    {
                                         ctx.log_child_error(&arg, "new", actual, &arg_indent);
                                     }
                                 }

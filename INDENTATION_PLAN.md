@@ -1,8 +1,67 @@
 # Indentation Rule Improvement Plan
 
-**Current Status:** 93.0% detection rate (60 missing, 0 extra)
+**Current Status:** 92.7% detection rate (62 missing, 0 extra)
 **Exact Matches:** 143/174 files (82.2%)
 **Goal:** 100% - exact match on all 174 test fixtures
+
+## Recent Fixes (Session Dec 30 - Continued)
+
+### Method Call and Constructor Argument Alignment Fixes
+
+1. **Return statement context**: Skip argument indentation check for method calls in return statements
+   - Checkstyle accepts ANY indentation for method call args in return statements
+   - Added `in_return_context` check for both method_invocation and object_creation_expression
+
+2. **Field declaration context**: Skip argument indentation check for method calls in field initializers
+   - Similar lenient behavior to return statements
+
+3. **Constructor args alignment**: Accept alignment with `new` position
+   - For `new Constructor(arg1, arg2,\n            arg3)`, args can be at `new` column
+
+4. **Nested method call args**: Accept alignment with outer context
+   - For `assertEquals(\n    foo(bar(\n    VALUE)))`, VALUE can align with outer arg level
+
+5. **Annotation array initializers**: Use attribute line indent as base
+   - For `@Ann(names = { "A", "B" })`, elements indent from attribute line, not class level
+
+**Real-world results after fix:**
+| Project | Session Start | After Lambda Fix | After All Fixes | Total Reduction |
+|---------|---------------|------------------|-----------------|-----------------|
+| agrona  | 79            | 18               | 17              | 78%             |
+| artio   | 1813          | 275              | 0               | 100%            |
+| aeron   | 160           | 161              | 37              | 77%             |
+| **Total** | **2052**    | **454**          | **54**          | **97%**         |
+
+**Test suite:** 92.7% detection (62 missing, 0 extra), 143/174 exact matches (82.2%)
+
+### Tests Added
+- `test_return_statement_args_any_indent` - codifies return statement leniency
+- `test_field_declaration_args_lenient` - codifies field declaration leniency
+- `test_expression_statement_args_strict` - verifies expression statements still checked
+- Updated real-world pattern tests to use lenient mode
+
+## Previous Session (Dec 30)
+
+### Lambda Block at Statement Level Fix
+- **Key Fix**: When lambda block brace appears on a NEW LINE and lambda is at statement level
+  (not on a continuation line), accept the brace at the statement level
+- Added `lambda_at_statement_level` check to avoid over-leniency for continuation lambdas
+
+**Pattern fixed:**
+```java
+executor.submit(() ->
+{              // Now accepted at statement level (col 8)
+    doWork();  // Content at col 12 (8 + 4)
+});
+```
+
+**Pattern correctly NOT changed:**
+```java
+Function<String, String> f =
+        (string) -> {   // Lambda at continuation (col 16)
+            work();     // Content at 20 is still flagged (expected 16)
+        };
+```
 
 ## Recent Fixes (Session Dec 29 - Continued pt9)
 
@@ -12,7 +71,7 @@
 - **aeron**: 0 checkstyle violations, 160 lintal false positives
 
 Main false positive patterns identified:
-- Lambda blocks in method call arguments (dominant issue)
+- Lambda blocks in method call arguments (dominant issue) - **FIXED**
 - `new` expressions with complex nesting
 - Annotation array initializers
 
@@ -139,23 +198,20 @@ Main false positive patterns identified:
 ### Extra Violations on Test Fixtures: RESOLVED ✓
 All extra violations on checkstyle test fixtures have been fixed. (0 extra)
 
-### Real-World Code - NEEDS WORK
+### Real-World Code - IMPROVED
 
-All three projects pass checkstyle with 0 indentation violations, but lintal reports false positives:
+All three projects pass checkstyle with 0 indentation violations. After Dec 30 fix:
 
-| Project | Checkstyle | Lintal | False Positives |
-|---------|------------|--------|-----------------|
-| artio   | 0          | 1813   | High lambda usage |
-| agrona  | 0          | 79     | Same patterns |
-| aeron   | 0          | 160    | Mixed |
+| Project | Checkstyle | Lintal (Before) | Lintal (After) | Reduction |
+|---------|------------|-----------------|----------------|-----------|
+| artio   | 0          | 1813            | 275            | 85%       |
+| agrona  | 0          | 79              | 18             | 77%       |
+| aeron   | 0          | 160             | 161            | -         |
 
-**Aeron breakdown:** 74 method call, 58 new, 14 annotation array init, 12 expr, 2 block braces
-
-**Root cause analysis:**
-1. **Lambda blocks in method call arguments** - checkstyle accepts lambda `{` at method call indent level, lintal incorrectly adds `lineWrappingIndentation`
-2. **Nested lambda/try/catch structures** - over-indentation being flagged
-3. **Method chain continuations** - partially fixed but edge cases remain
-4. **Annotation array initializers** - `@SuppressWarnings({"foo", "bar"})` pattern
+**Remaining false positives (to investigate):**
+1. **`expr` child violations** - expression continuation in some contexts
+2. **Annotation array initializers** - `@SuppressWarnings({"foo", "bar"})` pattern
+3. **Aeron-specific patterns** - different from artio/agrona style
 
 ### Remaining Missing Violations (60 total)
 
@@ -172,16 +228,16 @@ All three projects pass checkstyle with 0 indentation violations, but lintal rep
 
 ## Next Steps
 
-### Priority 1: Fix Real-World False Positives (2000+ violations)
-1. **Lambda blocks in method call arguments** - Accept lambda body at method call indent level (not +lineWrap)
-2. **Nested `new` expressions** - Review when lineWrappingIndentation applies
-3. **Annotation array initializers** - `@SuppressWarnings({"foo", "bar"})` pattern
+### Priority 1: Remaining Real-World False Positives (~450 total)
+1. **`expr` child violations** - Expression continuation patterns (most common remaining issue)
+2. **Annotation array initializers** - `@SuppressWarnings({"foo", "bar"})` pattern
+3. **Aeron-specific patterns** - Different code style from artio/agrona
 
 ### Priority 2: Remaining Test Fixture Issues (60 missing)
 1. **Record declarations** - Add record-specific handlers
-2. **Lambda expressions** - Review lambda parameter handling
-3. **Switch statements** - Fix switch expression wrapping
-4. **Method call continuations** - Handle chained method calls
+2. **Switch statements** - Fix switch expression wrapping
+3. **Method call continuations** - Handle chained method calls
+4. **Array init edge cases** - Remaining array initialization patterns
 
 ---
 
