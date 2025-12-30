@@ -2,21 +2,70 @@
 
 **Current Status:** 90.6% detection rate (80 missing, 0 extra)
 **Exact Matches:** 140/174 files (80.5%)
-**Real-World:** ALL 3 PROJECTS AT 0 FALSE POSITIVES
+**Real-World:** ALL 3 PROJECTS AT 0 FALSE POSITIVES (including CI)
 **Goal:** 100% - exact match on all 174 test fixtures
+**Tests:** 139 indentation tests passing
 
-## Recent Fixes (Session Dec 30 - Final)
+## Recent Fixes (Session Dec 30 - CI Fix)
+
+### CI Compatibility Fix
+
+Fixed CI failures for artio (85 violations) caused by `forceStrictCondition=true` config.
+CI uses auto-discovered config at `target/artio/config/checkstyle/checkstyle.xml`.
+
+**Root cause:** Checkstyle is lenient about certain patterns even with `forceStrictCondition=true`,
+but lintal was being strict. Fixed by making lintal match checkstyle's lenient behavior.
+
+### Lenient Patterns Fixed (all with forceStrictCondition=true)
+
+1. **Method chain continuations** (`mod.rs:2866-2880`)
+   - Accept any indent >= base for method chain `.` on continuation lines
+   - Also accept column 0 (checkstyle issue #7675)
+   - Pattern: `builder\n  .method1()\n  .method2();` (2-space is OK)
+
+2. **Lambda blocks in method chain arguments** (`mod.rs:2739-2747`)
+   - Lambda block `{` in method chain arg uses lenient indent
+   - Pattern: `.mapToObj(i -> { ... })` - block at method chain level
+
+3. **Method call arguments** (`mod.rs:2973-2982`)
+   - Accept any indent >= base for method call arguments
+   - Only flag if under-indented relative to base
+
+4. **Lambda expression bodies** (`mod.rs:2805-2819`)
+   - For nested lambdas, use `lambda_start.min(indent.first_level())` as floor
+   - Handles nested lambdas where indent has accumulated
+
+5. **Constructor arguments** (`mod.rs:3222-3229`)
+   - Accept any indent >= base for constructor args
+
+6. **Annotation indentation** (`mod.rs:2098-2112`)
+   - Lenient about annotation indent at member level
+
+### Tests Added (10 new lenient pattern tests)
+- `test_method_chain_2space_indent_strict`
+- `test_method_chain_dot_at_column_zero_strict`
+- `test_nested_lambda_expression_body_strict`
+- `test_nested_lambda_method_call_body_strict`
+- `test_lambda_block_in_method_chain_stream_strict`
+- `test_throw_statement_arg_indent_strict`
+- `test_constructor_args_2space_indent_strict`
+- `test_annotation_at_column_zero_strict`
+- `test_method_call_args_visual_alignment_strict`
+- `test_binary_expression_visual_alignment_in_return_strict`
 
 ### Real-World Projects: 100% Compatible
 
-All three real-world projects now pass with 0 false positives:
+All three real-world projects pass with 0 violations (both lenient and strict configs):
 
-| Project | Original | Final | Status |
-|---------|----------|-------|--------|
-| agrona  | 79       | **0** | ✓ |
-| artio   | 1813     | **0** | ✓ |
-| aeron   | 160      | **0** | ✓ |
-| **Total** | **2052** | **0** | **100% reduction** |
+| Project | With forceStrictCondition | Status |
+|---------|---------------------------|--------|
+| artio   | 0 violations              | ✓ |
+| agrona  | 0 violations              | ✓ |
+| aeron   | 0 violations              | ✓ |
+
+---
+
+## Previous Session (Dec 30 - Final)
 
 ### Fixes Applied
 

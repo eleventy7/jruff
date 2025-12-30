@@ -2020,3 +2020,195 @@ fn test_debug_package_info() {
 fn test_debug_difficult_annotations() {
     debug_fixture("InputIndentationDifficultAnnotations.java");
 }
+
+// ============================================================================
+// Lenient indentation tests (forceStrictCondition patterns from real codebases)
+// ============================================================================
+//
+// These tests verify that checkstyle-compatible lenient behavior is maintained
+// even with forceStrictCondition=true. These patterns are common in real-world
+// code (agrona, artio, aeron) and checkstyle doesn't flag them.
+
+#[test]
+fn test_method_chain_2space_indent_strict() {
+    // Pattern from artio: method chain with 2-space visual indent instead of 4-space.
+    // Checkstyle accepts any indent >= base indent for method chains.
+    let source = r#"
+class Foo {
+    void bar() {
+        builder
+          .method1()
+          .method2();
+    }
+}
+"#;
+    // With strict mode, should still pass (checkstyle is lenient about chains)
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Method chain with 2-space indent should pass in strict mode, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_method_chain_dot_at_column_zero_strict() {
+    // Edge case: method chain continuation at column 0.
+    // Checkstyle accepts column 0 for method chains (see issue #7675).
+    let source = r#"
+class Foo {
+    void bar() {
+        builder
+.method1()
+.method2();
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Method chain at column 0 should pass (checkstyle issue #7675), got lines: {:?}", violations);
+}
+
+#[test]
+fn test_nested_lambda_expression_body_strict() {
+    // Pattern from artio: nested lambda with expression body at lower indent than accumulated.
+    // The outer lambda pushes indent higher, but inner body can be at a lower level.
+    // client -> nested(() -> client.action())
+    //               ^ inner lambda body at 12, not at accumulated 20+
+    let source = r#"
+class Foo {
+    void bar() {
+        method(3, false, client ->
+            nested(client, () ->
+            client.action()));
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Nested lambda expression body should pass in strict mode, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_nested_lambda_method_call_body_strict() {
+    // Pattern from artio: nested lambda calling a method on the parameter.
+    // Similar to above but with a longer method call.
+    let source = r#"
+class Foo {
+    void bar() {
+        method(3, false, client ->
+            nested(client, () ->
+            client.writeSequence(1)));
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Nested lambda with method call body should pass, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_lambda_block_in_method_chain_stream_strict() {
+    // Pattern from aeron: lambda block inside stream method chain.
+    // The block brace is at the method chain level, not +4.
+    let source = r#"
+class Foo {
+    String bar() {
+        return IntStream.range(0, 10)
+                        .mapToObj(i ->
+                        {
+                            final Node node = items.item(i);
+                            return node.getName();
+                        })
+                        .collect(Collectors.joining(","));
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Lambda block in method chain should pass in strict mode, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_throw_statement_arg_indent_strict() {
+    // Pattern from agrona: throw statement with argument on continuation line.
+    // Checkstyle is lenient about throw statement argument indentation.
+    let source = r#"
+class Foo {
+    void bar() {
+        throw new ArithmeticException(
+          "Out of range: " + msg);
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Throw statement arg with 2-space indent should pass, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_constructor_args_2space_indent_strict() {
+    // Pattern from artio: constructor arguments at 2-space visual indent.
+    // Checkstyle accepts any indent >= base for constructor args.
+    let source = r#"
+class Foo {
+    void bar() {
+        final Generator gen =
+            new Generator(ARG1, ARG2,
+            ARG3, ARG4);
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Constructor args at same line as 'new' should pass, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_annotation_at_column_zero_strict() {
+    // Pattern from aeron: annotation on separate line at column 0 before class.
+    // Checkstyle doesn't strictly check annotation indentation at member level.
+    let source = r#"
+@SuppressWarnings("all")
+class Foo {
+    @Override
+    void bar() {
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Annotation at column 0 before class should pass, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_method_call_args_visual_alignment_strict() {
+    // Pattern from artio: method call args visually aligned.
+    // Checkstyle accepts any indent >= base for method call arguments.
+    let source = r#"
+class Foo {
+    void bar() {
+        assertEquals(uri,
+            logBuffer.getStringAscii(offset,
+            LITTLE_ENDIAN));
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Method call args with visual alignment should pass, got lines: {:?}", violations);
+}
+
+#[test]
+fn test_binary_expression_visual_alignment_in_return_strict() {
+    // Pattern from agrona: binary expression with visual alignment in return.
+    // Checkstyle is lenient about return statement continuation alignment.
+    let source = r#"
+class Foo {
+    boolean equals(Object other) {
+        return otherSet.value == value &&
+               otherSet.size == size;
+    }
+}
+"#;
+    let violations = check_indentation_with_config(source, &strict_config());
+    assert!(violations.is_empty(),
+        "Binary expr visual alignment in return should pass, got lines: {:?}", violations);
+}
