@@ -106,10 +106,16 @@ fn infer_config_from_code(source: &str, config: &mut HashMap<String, String>) {
 
     for line in source.lines() {
         // Find class declaration and its indent
-        if !in_class_body && (line.contains("class ") || line.contains("interface ") || line.contains("enum ")) {
+        if !in_class_body
+            && (line.contains("class ") || line.contains("interface ") || line.contains("enum "))
+        {
             if let Some(comment_start) = line.find("//indent:") {
                 let comment = &line[comment_start..];
-                if let Some(indent) = comment[9..].split_whitespace().next().and_then(|s| s.parse::<i32>().ok()) {
+                if let Some(indent) = comment[9..]
+                    .split_whitespace()
+                    .next()
+                    .and_then(|s| s.parse::<i32>().ok())
+                {
                     class_indent = indent;
                     in_class_body = true;
                 }
@@ -134,7 +140,11 @@ fn infer_config_from_code(source: &str, config: &mut HashMap<String, String>) {
             // Look for indent comment
             if let Some(comment_start) = line.find("//indent:") {
                 let comment = &line[comment_start..];
-                if let Some(indent) = comment[9..].split_whitespace().next().and_then(|s| s.parse::<i32>().ok()) {
+                if let Some(indent) = comment[9..]
+                    .split_whitespace()
+                    .next()
+                    .and_then(|s| s.parse::<i32>().ok())
+                {
                     // Sanity check: indent should be reasonable (< 20)
                     if indent > 20 {
                         continue;
@@ -152,7 +162,10 @@ fn infer_config_from_code(source: &str, config: &mut HashMap<String, String>) {
                             config.insert("lineWrappingIndentation".to_string(), "4".to_string());
                             config.insert("tabWidth".to_string(), "2".to_string());
                         } else {
-                            config.insert("lineWrappingIndentation".to_string(), basic_offset.to_string());
+                            config.insert(
+                                "lineWrappingIndentation".to_string(),
+                                basic_offset.to_string(),
+                            );
                             config.insert("tabWidth".to_string(), basic_offset.to_string());
                         }
                     }
@@ -164,7 +177,10 @@ fn infer_config_from_code(source: &str, config: &mut HashMap<String, String>) {
 }
 
 /// Run Indentation rule on source with given config and collect violation lines.
-fn check_indentation_with_config(source: &str, properties: &HashMap<String, String>) -> HashSet<usize> {
+fn check_indentation_with_config(
+    source: &str,
+    properties: &HashMap<String, String>,
+) -> HashSet<usize> {
     check_indentation_with_config_debug(source, properties, false)
 }
 
@@ -290,7 +306,11 @@ fn parse_expected_violations(source: &str) -> HashSet<usize> {
 /// Get the indentation fixtures directory path.
 fn indentation_fixtures_dir() -> Option<std::path::PathBuf> {
     let checkstyle_root = checkstyle_repo::checkstyle_repo()?;
-    Some(checkstyle_root.join("src/test/resources/com/puppycrawl/tools/checkstyle/checks/indentation/indentation"))
+    Some(
+        checkstyle_root.join(
+            "src/test/resources/com/puppycrawl/tools/checkstyle/checks/indentation/indentation",
+        ),
+    )
 }
 
 /// Load a checkstyle test input file.
@@ -375,7 +395,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented code, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented code, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -386,8 +410,15 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(!violations.is_empty(), "Expected violations for incorrectly indented member");
-    assert!(violations.contains(&3), "Expected violation on line 3, got: {:?}", violations);
+    assert!(
+        !violations.is_empty(),
+        "Expected violations for incorrectly indented member"
+    );
+    assert!(
+        violations.contains(&3),
+        "Expected violation on line 3, got: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -400,8 +431,15 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(!violations.is_empty(), "Expected violations for incorrectly indented statement");
-    assert!(violations.contains(&4), "Expected violation on line 4, got: {:?}", violations);
+    assert!(
+        !violations.is_empty(),
+        "Expected violations for incorrectly indented statement"
+    );
+    assert!(
+        violations.contains(&4),
+        "Expected violation on line 4, got: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -418,7 +456,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented if-else, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented if-else, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -438,7 +480,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented switch, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented switch, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -457,7 +503,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented try-catch, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented try-catch, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -474,7 +524,11 @@ class Outer {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented nested class, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented nested class, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -489,7 +543,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented lambda with block body, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented lambda with block body, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -500,7 +558,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for single-line lambda, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for single-line lambda, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -516,7 +578,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for multiline method args, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for multiline method args, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -531,7 +597,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for array initializer, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for array initializer, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -546,7 +616,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for anonymous class, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for anonymous class, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -561,7 +635,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for chained method calls, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for chained method calls, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -578,7 +656,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for annotation array initializer, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for annotation array initializer, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -595,7 +677,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for lambda with nested method calls, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda with nested method calls, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -619,7 +705,11 @@ class Invalid extends Base {
 
     fn print_tree(node: lintal_java_cst::CstNode, depth: usize) {
         let indent = "  ".repeat(depth);
-        if node.kind().contains("constructor") || node.kind() == "super" || node.kind() == "this" || node.kind() == "block" {
+        if node.kind().contains("constructor")
+            || node.kind() == "super"
+            || node.kind() == "this"
+            || node.kind() == "block"
+        {
             eprintln!("{}{}", indent, node.kind());
         }
         for child in node.children() {
@@ -628,7 +718,10 @@ class Invalid extends Base {
     }
 
     eprintln!("\n=== AST for constructor call test ===");
-    print_tree(lintal_java_cst::CstNode::new(result.tree.root_node(), source), 0);
+    print_tree(
+        lintal_java_cst::CstNode::new(result.tree.root_node(), source),
+        0,
+    );
 
     // Now check with config
     let mut props = std::collections::HashMap::new();
@@ -641,8 +734,11 @@ class Invalid extends Base {
     // super( at line 7 column 4 should be violation (expected 8)
     // arg at line 8 column 4 should be violation
     // + 1L at line 9 column 4 should be violation
-    assert!(violations.contains(&7) || violations.contains(&8),
-        "Expected violations for incorrectly indented super() call, got: {:?}", violations);
+    assert!(
+        violations.contains(&7) || violations.contains(&8),
+        "Expected violations for incorrectly indented super() call, got: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -658,7 +754,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for line-wrapped method chains, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for line-wrapped method chains, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -676,7 +776,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for multiline method arguments, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for multiline method arguments, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -691,7 +795,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for lambda body on new line, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda body on new line, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -709,7 +817,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for nested new expressions, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for nested new expressions, got lines: {:?}",
+        violations
+    );
 }
 
 // ============================================================================
@@ -741,8 +853,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda block at method call indent level, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda block at method call indent level, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -764,8 +879,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda in method arg with block at call level, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda in method arg with block at call level, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -790,8 +908,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda with try-catch at call level, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda with try-catch at call level, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -813,8 +934,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda assignment with block at declaration level, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda assignment with block at declaration level, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -834,8 +958,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for nested lambda in method chain, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for nested lambda in method chain, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -854,8 +981,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for standard inline lambda block, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for standard inline lambda block, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -869,8 +999,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for annotation array init continuation, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for annotation array init continuation, got lines: {:?}",
+        violations
+    );
 }
 
 // ============================================================================
@@ -889,7 +1022,10 @@ fn strict_config() -> HashMap<String, String> {
         ("arrayInitIndent", "4"),
         ("lineWrappingIndentation", "4"),
         ("forceStrictCondition", "true"),
-    ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect()
 }
 
 #[test]
@@ -913,8 +1049,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda block at call level (strict mode), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda block at call level (strict mode), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -939,8 +1078,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda with try-catch (strict mode), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda with try-catch (strict mode), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -976,8 +1118,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Expected no violations for lambda with nested try-resources (strict mode), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for lambda with nested try-resources (strict mode), got lines: {:?}",
+        violations
+    );
 }
 
 // ============================================================================
@@ -1001,13 +1146,19 @@ qux);
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Return statement should accept args at any indent, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Return statement should accept args at any indent, got lines: {:?}",
+        violations
+    );
 
     // Also passes with strict config
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Return statement should accept args at any indent (strict), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Return statement should accept args at any indent (strict), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1020,8 +1171,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Field declaration should accept args at member indent, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Field declaration should accept args at member indent, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1037,9 +1191,14 @@ qux);
 }
 "#;
     let violations = check_indentation(source);
-    assert!(!violations.is_empty(),
-        "Expression statement should require proper arg indent");
-    assert!(violations.contains(&5), "Line 5 (qux at col 0) should be flagged");
+    assert!(
+        !violations.is_empty(),
+        "Expression statement should require proper arg indent"
+    );
+    assert!(
+        violations.contains(&5),
+        "Line 5 (qux at col 0) should be flagged"
+    );
 }
 
 #[test]
@@ -1056,8 +1215,11 @@ class Foo {
 "#;
     // Should pass with strict config - checkstyle is lenient here
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Throw statement should accept binary expr at any indent, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Throw statement should accept binary expr at any indent, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1074,8 +1236,11 @@ class Foo {
 "#;
     // Should pass with strict config - checkstyle allows visual alignment
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Return statement should accept visual alignment, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Return statement should accept visual alignment, got lines: {:?}",
+        violations
+    );
 }
 
 // ============================================================================
@@ -1103,8 +1268,11 @@ class Foo {
 "#;
     // First check with lenient mode (default) - should pass
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for string concat (lenient mode), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for string concat (lenient mode), got lines: {:?}",
+        violations
+    );
 
     // With strict mode, this may fail - checkstyle has special alignment rules
     // TODO: investigate checkstyle's alignment handling
@@ -1130,8 +1298,11 @@ class Foo {
 "#;
     // Lenient mode - should pass (actual >= expected)
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for boolean && (lenient mode), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for boolean && (lenient mode), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1154,8 +1325,11 @@ class Foo {
 "#;
     // Lenient mode - should pass (actual >= expected not required for under-indented)
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for method args with 2-space visual alignment (lenient), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for method args with 2-space visual alignment (lenient), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1177,8 +1351,11 @@ class Foo {
 "#;
     // Lenient mode - should pass
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for constructor args aligned with new (lenient), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for constructor args aligned with new (lenient), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1204,8 +1381,11 @@ class Foo {
 "#;
     // Lenient mode - should pass
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for nested method call args aligned (lenient), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for nested method call args aligned (lenient), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1231,8 +1411,11 @@ class Foo {
 "#;
     // Strict mode - should pass (checkstyle accepts this alignment)
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Expected no violations for anonymous class in lambda aligned, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for anonymous class in lambda aligned, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1255,8 +1438,11 @@ class Foo {
 "#;
     // Strict mode - should pass (checkstyle accepts this alignment)
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Expected no violations for nested arg at method line start, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for nested arg at method line start, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1284,8 +1470,11 @@ class Foo {
 "#;
     // Lenient mode - should pass
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for annotation array with indented elements (lenient), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for annotation array with indented elements (lenient), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1310,8 +1499,11 @@ class Foo {
 "#;
     // Lenient mode - should pass (deeper indentation is accepted)
     let violations = check_indentation(source);
-    assert!(violations.is_empty(),
-        "Expected no violations for nested builder chain (lenient), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for nested builder chain (lenient), got lines: {:?}",
+        violations
+    );
 }
 
 // ============================================================================
@@ -1332,39 +1524,53 @@ struct FixtureTestResult {
 fn get_config_overrides(file_name: &str) -> Option<HashMap<String, String>> {
     match file_name {
         // SwitchCasesAndEnums file header says caseIndent=4, but actual test uses caseIndent=2
-        "InputIndentationSwitchCasesAndEnums.java" => Some([
-            ("arrayInitIndent", "4"),
-            ("basicOffset", "2"),
-            ("braceAdjustment", "2"),
-            ("caseIndent", "2"),  // Corrected from 4 to 2
-            ("forceStrictCondition", "false"),
-            ("lineWrappingIndentation", "4"),
-            ("tabWidth", "4"),
-            ("throwsIndent", "4"),
-        ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()),
+        "InputIndentationSwitchCasesAndEnums.java" => Some(
+            [
+                ("arrayInitIndent", "4"),
+                ("basicOffset", "2"),
+                ("braceAdjustment", "2"),
+                ("caseIndent", "2"), // Corrected from 4 to 2
+                ("forceStrictCondition", "false"),
+                ("lineWrappingIndentation", "4"),
+                ("tabWidth", "4"),
+                ("throwsIndent", "4"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        ),
         // TryWithResourcesStrict files need forceStrictCondition=true
-        "InputIndentationTryWithResourcesStrict.java" |
-        "InputIndentationTryWithResourcesStrict1.java" => Some([
-            ("basicOffset", "4"),
-            ("forceStrictCondition", "true"),
-            ("lineWrappingIndentation", "4"),
-            ("tabWidth", "4"),
-        ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()),
+        "InputIndentationTryWithResourcesStrict.java"
+        | "InputIndentationTryWithResourcesStrict1.java" => Some(
+            [
+                ("basicOffset", "4"),
+                ("forceStrictCondition", "true"),
+                ("lineWrappingIndentation", "4"),
+                ("tabWidth", "4"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        ),
         _ => None,
     }
 }
 
 fn run_fixture_test(file_name: &str) -> Option<FixtureTestResult> {
     let source = load_indentation_fixture(file_name)?;
-    let config = get_config_overrides(file_name)
-        .unwrap_or_else(|| parse_fixture_config(&source));
+    let config = get_config_overrides(file_name).unwrap_or_else(|| parse_fixture_config(&source));
     let expected = parse_expected_violations(&source);
     let actual = check_indentation_with_config(&source, &config);
 
     let missing: Vec<usize> = expected.difference(&actual).copied().collect();
     let extra: Vec<usize> = actual.difference(&expected).copied().collect();
 
-    Some(FixtureTestResult { expected, actual, missing, extra })
+    Some(FixtureTestResult {
+        expected,
+        actual,
+        missing,
+        extra,
+    })
 }
 
 /// Debug helper to print violations with context
@@ -1374,8 +1580,7 @@ fn debug_fixture(file_name: &str) {
         return;
     };
 
-    let config = get_config_overrides(file_name)
-        .unwrap_or_else(|| parse_fixture_config(&source));
+    let config = get_config_overrides(file_name).unwrap_or_else(|| parse_fixture_config(&source));
     eprintln!("Config: {:?}", config);
 
     let expected = parse_expected_violations(&source);
@@ -1558,7 +1763,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.is_empty(), "Expected no violations for correctly indented throws, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Expected no violations for correctly indented throws, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1572,7 +1781,11 @@ throws Exception {
 }
 "#;
     let violations = check_indentation(source);
-    assert!(violations.contains(&4), "Expected violation for incorrectly indented throws at line 4, got: {:?}", violations);
+    assert!(
+        violations.contains(&4),
+        "Expected violation for incorrectly indented throws at line 4, got: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -1606,14 +1819,24 @@ fn test_fixture_valid_block_indent() {
     // For Valid files, we primarily care that we don't produce false positives
     // Allow some implementation differences but flag excessive extra violations
     if result.extra.len() > 5 {
-        eprintln!("Warning: {} extra violations in ValidBlockIndent: {:?}", result.extra.len(), result.extra);
+        eprintln!(
+            "Warning: {} extra violations in ValidBlockIndent: {:?}",
+            result.extra.len(),
+            result.extra
+        );
     }
     if !result.missing.is_empty() {
-        eprintln!("Missing violations in ValidBlockIndent: {:?}", result.missing);
+        eprintln!(
+            "Missing violations in ValidBlockIndent: {:?}",
+            result.missing
+        );
     }
 
     // This test passes if we don't crash and have reasonable results
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1624,9 +1847,16 @@ fn test_fixture_valid_class_def_indent() {
     };
 
     if result.extra.len() > 5 {
-        eprintln!("Warning: {} extra violations in ValidClassDefIndent: {:?}", result.extra.len(), result.extra);
+        eprintln!(
+            "Warning: {} extra violations in ValidClassDefIndent: {:?}",
+            result.extra.len(),
+            result.extra
+        );
     }
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1636,11 +1866,19 @@ fn test_fixture_classes_methods() {
         return;
     };
 
-    eprintln!("ClassesMethods: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "ClassesMethods: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
     // This is a comprehensive test file
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1650,10 +1888,18 @@ fn test_fixture_code_blocks() {
         return;
     };
 
-    eprintln!("CodeBlocks1: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "CodeBlocks1: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1663,10 +1909,18 @@ fn test_fixture_chained_methods() {
         return;
     };
 
-    eprintln!("ChainedMethods: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "ChainedMethods: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1676,10 +1930,18 @@ fn test_fixture_lambda() {
         return;
     };
 
-    eprintln!("Lambda1: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "Lambda1: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1689,10 +1951,18 @@ fn test_fixture_anonymous_classes() {
         return;
     };
 
-    eprintln!("AnonymousClasses: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "AnonymousClasses: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1702,10 +1972,18 @@ fn test_fixture_arrays() {
         return;
     };
 
-    eprintln!("Arrays: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "Arrays: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1715,10 +1993,18 @@ fn test_fixture_switch_expression() {
         return;
     };
 
-    eprintln!("SwitchExpression: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "SwitchExpression: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1728,8 +2014,13 @@ fn test_fixture_method_call_line_wrap() {
         return;
     };
 
-    eprintln!("MethodCallLineWrap: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "MethodCallLineWrap: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
     // This is a key test for line wrapping - report details
     if !result.missing.is_empty() {
@@ -1739,7 +2030,10 @@ fn test_fixture_method_call_line_wrap() {
         eprintln!("Extra violations: {:?}", result.extra);
     }
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1749,10 +2043,18 @@ fn test_fixture_annotation_definition() {
         return;
     };
 
-    eprintln!("AnnotationDefinition: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "AnnotationDefinition: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 #[test]
@@ -1762,10 +2064,18 @@ fn test_fixture_try_resources() {
         return;
     };
 
-    eprintln!("TryResources: expected={}, actual={}, missing={}, extra={}",
-        result.expected.len(), result.actual.len(), result.missing.len(), result.extra.len());
+    eprintln!(
+        "TryResources: expected={}, actual={}, missing={}, extra={}",
+        result.expected.len(),
+        result.actual.len(),
+        result.missing.len(),
+        result.extra.len()
+    );
 
-    assert!(result.expected.len() + result.actual.len() < 1000, "Sanity check failed");
+    assert!(
+        result.expected.len() + result.actual.len() < 1000,
+        "Sanity check failed"
+    );
 }
 
 /// Comprehensive test that runs ALL available fixtures and reports summary.
@@ -1788,7 +2098,10 @@ fn test_fixture_compatibility_summary() {
     let mut parse_failures = 0;
 
     eprintln!();
-    eprintln!("=== Indentation Compatibility Summary ({} fixtures) ===", fixtures.len());
+    eprintln!(
+        "=== Indentation Compatibility Summary ({} fixtures) ===",
+        fixtures.len()
+    );
     eprintln!();
 
     for fixture in &fixtures {
@@ -1812,9 +2125,15 @@ fn test_fixture_compatibility_summary() {
 
             // Only print non-matching fixtures to reduce noise
             if status != "✓ MATCH" {
-                eprintln!("{} {}: exp={}, act={}, miss={}, extra={}",
-                    status, fixture, result.expected.len(), result.actual.len(),
-                    result.missing.len(), result.extra.len());
+                eprintln!(
+                    "{} {}: exp={}, act={}, miss={}, extra={}",
+                    status,
+                    fixture,
+                    result.expected.len(),
+                    result.actual.len(),
+                    result.missing.len(),
+                    result.extra.len()
+                );
             }
         } else {
             parse_failures += 1;
@@ -1825,7 +2144,11 @@ fn test_fixture_compatibility_summary() {
     eprintln!("=== Summary ===");
     eprintln!("Total fixtures: {}", fixtures.len());
     eprintln!("Files tested: {}", files_tested);
-    eprintln!("Exact matches: {} ({:.1}%)", exact_matches, 100.0 * exact_matches as f64 / files_tested as f64);
+    eprintln!(
+        "Exact matches: {} ({:.1}%)",
+        exact_matches,
+        100.0 * exact_matches as f64 / files_tested as f64
+    );
     eprintln!("Parse failures: {}", parse_failures);
     eprintln!();
     eprintln!("Total expected violations: {}", total_expected);
@@ -2044,8 +2367,11 @@ class Foo {
 "#;
     // With strict mode, should still pass (checkstyle is lenient about chains)
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Method chain with 2-space indent should pass in strict mode, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Method chain with 2-space indent should pass in strict mode, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2062,8 +2388,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Method chain at column 0 should pass (checkstyle issue #7675), got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Method chain at column 0 should pass (checkstyle issue #7675), got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2082,8 +2411,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Nested lambda expression body should pass in strict mode, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Nested lambda expression body should pass in strict mode, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2100,8 +2432,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Nested lambda with method call body should pass, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Nested lambda with method call body should pass, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2122,8 +2457,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Lambda block in method chain should pass in strict mode, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Lambda block in method chain should pass in strict mode, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2139,8 +2477,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Throw statement arg with 2-space indent should pass, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Throw statement arg with 2-space indent should pass, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2157,8 +2498,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Constructor args at same line as 'new' should pass, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Constructor args at same line as 'new' should pass, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2174,8 +2518,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Annotation at column 0 before class should pass, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Annotation at column 0 before class should pass, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2192,8 +2539,11 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Method call args with visual alignment should pass, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Method call args with visual alignment should pass, got lines: {:?}",
+        violations
+    );
 }
 
 #[test]
@@ -2209,6 +2559,9 @@ class Foo {
 }
 "#;
     let violations = check_indentation_with_config(source, &strict_config());
-    assert!(violations.is_empty(),
-        "Binary expr visual alignment in return should pass, got lines: {:?}", violations);
+    assert!(
+        violations.is_empty(),
+        "Binary expr visual alignment in return should pass, got lines: {:?}",
+        violations
+    );
 }

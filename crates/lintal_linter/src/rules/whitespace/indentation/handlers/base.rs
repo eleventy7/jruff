@@ -8,8 +8,8 @@ use lintal_java_cst::CstNode;
 use lintal_text_size::{TextRange, TextSize};
 use std::cell::RefCell;
 
-use super::super::indent_level::IndentLevel;
 use super::super::Indentation;
+use super::super::indent_level::IndentLevel;
 
 /// Violation for incorrect indentation.
 #[derive(Debug, Clone)]
