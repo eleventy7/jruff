@@ -1,12 +1,16 @@
 [package]
 name = "lintal_java_parser"
-version = "0.1.0"
+version = "0.1.5"
 edition = "2024"
 rust-version = "1.92"
 license = "MIT"
 
 [lib]
 doctest = false
+
+[[bin]]
+name = "dump_java_ast"
+path = "src/bin/dump_java_ast.rs"
 
 [dependencies]
 tree-sitter = "0.26"
