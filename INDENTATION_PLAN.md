@@ -4,6 +4,18 @@
 **Exact Matches:** 143/174 files (82.2%)
 **Goal:** 100% - exact match on all 174 test fixtures
 
+## Recent Fixes (Session Dec 29 - Continued pt9)
+
+### Real-World Project Testing
+- **artio**: 0 checkstyle violations, 1813 lintal false positives
+- **agrona**: 0 checkstyle violations, 79 lintal false positives
+- **aeron**: 0 checkstyle violations, 160 lintal false positives
+
+Main false positive patterns identified:
+- Lambda blocks in method call arguments (dominant issue)
+- `new` expressions with complex nesting
+- Annotation array initializers
+
 ## Recent Fixes (Session Dec 29 - Continued pt8)
 
 ### Array Initialization Context Fixes
@@ -124,8 +136,26 @@
 
 ## Known Issues
 
-### Extra Violations: RESOLVED ✓
-All extra violations (false positives) have been fixed. (0 extra)
+### Extra Violations on Test Fixtures: RESOLVED ✓
+All extra violations on checkstyle test fixtures have been fixed. (0 extra)
+
+### Real-World Code - NEEDS WORK
+
+All three projects pass checkstyle with 0 indentation violations, but lintal reports false positives:
+
+| Project | Checkstyle | Lintal | False Positives |
+|---------|------------|--------|-----------------|
+| artio   | 0          | 1813   | High lambda usage |
+| agrona  | 0          | 79     | Same patterns |
+| aeron   | 0          | 160    | Mixed |
+
+**Aeron breakdown:** 74 method call, 58 new, 14 annotation array init, 12 expr, 2 block braces
+
+**Root cause analysis:**
+1. **Lambda blocks in method call arguments** - checkstyle accepts lambda `{` at method call indent level, lintal incorrectly adds `lineWrappingIndentation`
+2. **Nested lambda/try/catch structures** - over-indentation being flagged
+3. **Method chain continuations** - partially fixed but edge cases remain
+4. **Annotation array initializers** - `@SuppressWarnings({"foo", "bar"})` pattern
 
 ### Remaining Missing Violations (60 total)
 
@@ -142,6 +172,12 @@ All extra violations (false positives) have been fixed. (0 extra)
 
 ## Next Steps
 
+### Priority 1: Fix Real-World False Positives (2000+ violations)
+1. **Lambda blocks in method call arguments** - Accept lambda body at method call indent level (not +lineWrap)
+2. **Nested `new` expressions** - Review when lineWrappingIndentation applies
+3. **Annotation array initializers** - `@SuppressWarnings({"foo", "bar"})` pattern
+
+### Priority 2: Remaining Test Fixture Issues (60 missing)
 1. **Record declarations** - Add record-specific handlers
 2. **Lambda expressions** - Review lambda parameter handling
 3. **Switch statements** - Fix switch expression wrapping

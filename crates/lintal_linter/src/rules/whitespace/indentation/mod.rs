@@ -2796,13 +2796,12 @@ impl Indentation {
                 let dot_line = self.line_no(ctx, dot);
                 if dot_line > obj_line && ctx.is_on_start_of_line(dot) {
                     let actual = ctx.get_line_start(dot_line);
-                    // Expected is indent + lineWrappingIndentation for strict mode,
-                    // but in lenient mode, accept any indent >= base indent.
+                    // Expected is indent + lineWrappingIndentation
                     let expected = indent.with_offset(self.line_wrapping_indentation);
-                    // Use lenient check against base indent - in lenient mode accepts >= indent minimum.
-                    // Also accept column 0 as a valid position for method chain continuations
-                    // (see checkstyle issue #7675 - some codebases align chains to left margin).
-                    if actual != 0 && !ctx.is_indent_acceptable(actual, indent) {
+                    // Accept base indent OR line-wrapped indent for method chain continuations
+                    // Also accept column 0 (see checkstyle issue #7675 - some codebases align to left margin)
+                    let acceptable = indent.combine(&expected);
+                    if actual != 0 && !ctx.is_indent_acceptable(actual, &acceptable) {
                         ctx.log_error(dot, "method call", actual, &expected);
                     }
                 }
