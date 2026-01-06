@@ -30,9 +30,9 @@ lintal is significantly faster than checkstyle due to native compilation and par
 
 | Repository | Files | Checkstyle | lintal | Speedup |
 |------------|-------|------------|--------|---------|
-| Agrona | 289 | 1.59s ± 0.01s | 0.41s ± 0.06s | **3.9x** |
-| Artio | 726 | 2.76s ± 0.04s | 1.09s ± 0.16s | **2.5x** |
-| Aeron | 935 | 4.92s ± 0.04s | 2.06s ± 0.14s | **2.4x** |
+| Agrona | 289 | 1.55s ± 0.01s | 0.38s ± 0.05s | **4.1x** |
+| Artio | 726 | 2.71s ± 0.03s | 1.08s ± 0.14s | **2.5x** |
+| Aeron | 935 | 4.90s ± 0.05s | 1.88s ± 0.26s | **2.6x** |
 
 ![Benchmark Results](docs/benchmark_results.png)
 

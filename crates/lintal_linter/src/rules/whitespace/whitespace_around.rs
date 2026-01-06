@@ -34,6 +34,38 @@ pub struct WhitespaceAround {
     pub check_wildcard_type: bool,
 }
 
+const RELEVANT_KINDS: &[&str] = &[
+    "binary_expression",
+    "assignment_expression",
+    "variable_declarator",
+    "ternary_expression",
+    "if_statement",
+    "while_statement",
+    "do_statement",
+    "for_statement",
+    "enhanced_for_statement",
+    "switch_expression",
+    "switch_statement",
+    "synchronized_statement",
+    "try_statement",
+    "try_with_resources_statement",
+    "catch_clause",
+    "finally_clause",
+    "return_statement",
+    "assert_statement",
+    "block",
+    "constructor_body",
+    "class_body",
+    "interface_body",
+    "enum_body",
+    "annotation_type_body",
+    "lambda_expression",
+    "type_bound",
+    "guard",
+    "type_arguments",
+    "wildcard",
+];
+
 impl Default for WhitespaceAround {
     fn default() -> Self {
         Self {
@@ -129,6 +161,10 @@ impl Violation for MissingWhitespaceAfter {
 impl Rule for WhitespaceAround {
     fn name(&self) -> &'static str {
         "WhitespaceAround"
+    }
+
+    fn relevant_kinds(&self) -> &'static [&'static str] {
+        RELEVANT_KINDS
     }
 
     fn check(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
@@ -622,19 +658,25 @@ fn find_child_by_kind<'a>(node: &CstNode<'a>, kind: &str) -> Option<CstNode<'a>>
 
 /// Check if a block is empty (only contains { and }).
 fn is_empty_block(node: &CstNode) -> bool {
-    let children: Vec<_> = node.children().collect();
     // Empty block has exactly 2 children: { and }
-    children.len() == 2
-        && children.first().map(|c| c.kind()) == Some("{")
-        && children.last().map(|c| c.kind()) == Some("}")
+    // Avoid collecting into a Vec - just iterate and check
+    let mut iter = node.children();
+    let first = iter.next();
+    let second = iter.next();
+    let third = iter.next();
+
+    first.map(|c| c.kind()) == Some("{") && second.map(|c| c.kind()) == Some("}") && third.is_none()
 }
 
 /// Check if a type body is empty.
 fn is_empty_type_body(node: &CstNode) -> bool {
-    let children: Vec<_> = node.children().collect();
-    children.len() == 2
-        && children.first().map(|c| c.kind()) == Some("{")
-        && children.last().map(|c| c.kind()) == Some("}")
+    // Same optimization as is_empty_block
+    let mut iter = node.children();
+    let first = iter.next();
+    let second = iter.next();
+    let third = iter.next();
+
+    first.map(|c| c.kind()) == Some("{") && second.map(|c| c.kind()) == Some("}") && third.is_none()
 }
 
 /// Find the operator node in a binary expression.

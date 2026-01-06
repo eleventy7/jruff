@@ -199,12 +199,19 @@ impl SuppressionContext {
         // Track open suppressions: rule -> start offset
         let mut open_suppressions: HashMap<String, TextSize> = HashMap::new();
 
-        // Use char_indices for UTF-8 safe iteration
+        // Use find() to skip to potential comment locations instead of byte-by-byte iteration
         let bytes = source.as_bytes();
         let mut pos = 0;
+
         while pos < bytes.len() {
-            // Check for line comment (// is always ASCII)
-            if pos + 1 < bytes.len() && bytes[pos] == b'/' && bytes[pos + 1] == b'/' {
+            // Skip to next '/' character - comments always start with '/'
+            let Some(slash_offset) = bytes[pos..].iter().position(|&b| b == b'/') else {
+                break;
+            };
+            pos += slash_offset;
+
+            // Check for line comment (//)
+            if pos + 1 < bytes.len() && bytes[pos + 1] == b'/' {
                 // Find end of line
                 let line_end = bytes[pos..]
                     .iter()
@@ -224,34 +231,29 @@ impl SuppressionContext {
                 continue;
             }
 
-            // Check for block comment (/* and */ are always ASCII)
-            if pos + 1 < bytes.len() && bytes[pos] == b'/' && bytes[pos + 1] == b'*' {
-                // Find end of block comment
-                let mut end_pos = pos + 2;
-                while end_pos + 1 < bytes.len() {
-                    if bytes[end_pos] == b'*' && bytes[end_pos + 1] == b'/' {
-                        let comment_end = end_pos + 2;
-                        let comment = &source[pos..comment_end];
+            // Check for block comment (/*)
+            if pos + 1 < bytes.len() && bytes[pos + 1] == b'*' {
+                // Find end of block comment - use find for */ instead of byte-by-byte
+                if let Some(end_offset) = source[pos + 2..].find("*/") {
+                    let comment_end = pos + 2 + end_offset + 2;
+                    let comment = &source[pos..comment_end];
 
-                        self.process_comment(
-                            comment,
-                            TextSize::new(pos as u32),
-                            filter,
-                            &mut open_suppressions,
-                        );
+                    self.process_comment(
+                        comment,
+                        TextSize::new(pos as u32),
+                        filter,
+                        &mut open_suppressions,
+                    );
 
-                        pos = comment_end;
-                        break;
-                    }
-                    end_pos += 1;
-                }
-                if end_pos + 1 >= bytes.len() {
+                    pos = comment_end;
+                    continue;
+                } else {
                     // Unclosed comment, skip to end
                     break;
                 }
-                continue;
             }
 
+            // Not a comment start, move past this '/'
             pos += 1;
         }
 
@@ -360,6 +362,10 @@ impl SuppressionContext {
     /// - `@SuppressWarnings("checkstyle:RuleName")`
     /// - `@SuppressWarnings({"checkstyle:Rule1", "checkstyle:Rule2"})`
     pub fn parse_suppress_warnings(&mut self, source: &str, root: &CstNode) {
+        // Quick check: skip the tree walk if source doesn't contain @SuppressWarnings
+        if !source.contains("@SuppressWarnings") {
+            return;
+        }
         self.visit_for_annotations(source, root);
     }
 
