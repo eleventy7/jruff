@@ -82,18 +82,14 @@ impl Rule for EmptyForInitializerPad {
 
         // Find the first semicolon in the for statement
         // This is the semicolon after the initializer section
-        let semicolons: Vec<_> = node.children().filter(|c| c.kind() == ";").collect();
-
-        if semicolons.is_empty() {
+        let Some(first_semi) = node.children().find(|c| c.kind() == ";") else {
             return diagnostics;
-        }
-
-        let first_semi = &semicolons[0];
+        };
 
         // Check if the initializer is empty
         // The initializer is empty if there's nothing between '(' and the first ';'
         // except whitespace
-        if !is_empty_initializer(node, first_semi) {
+        if !is_empty_initializer(node, &first_semi) {
             return diagnostics;
         }
 
@@ -118,13 +114,13 @@ impl Rule for EmptyForInitializerPad {
                     && usize::from(ws_range.start()) > 0
                 {
                     // Make sure we're not at the start of file (which counts as whitespace)
-                    diagnostics.push(diag_preceded(first_semi, ws_range));
+                    diagnostics.push(diag_preceded(&first_semi, ws_range));
                 }
             }
             PadOption::Space => {
                 // Option is space, report if there's NO whitespace before semicolon
                 if !has_ws {
-                    diagnostics.push(diag_not_preceded(first_semi));
+                    diagnostics.push(diag_not_preceded(&first_semi));
                 }
             }
         }

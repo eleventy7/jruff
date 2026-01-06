@@ -658,19 +658,29 @@ fn find_child_by_kind<'a>(node: &CstNode<'a>, kind: &str) -> Option<CstNode<'a>>
 
 /// Check if a block is empty (only contains { and }).
 fn is_empty_block(node: &CstNode) -> bool {
-    let children: Vec<_> = node.children().collect();
     // Empty block has exactly 2 children: { and }
-    children.len() == 2
-        && children.first().map(|c| c.kind()) == Some("{")
-        && children.last().map(|c| c.kind()) == Some("}")
+    // Avoid collecting into a Vec - just iterate and check
+    let mut iter = node.children();
+    let first = iter.next();
+    let second = iter.next();
+    let third = iter.next();
+
+    first.map(|c| c.kind()) == Some("{")
+        && second.map(|c| c.kind()) == Some("}")
+        && third.is_none()
 }
 
 /// Check if a type body is empty.
 fn is_empty_type_body(node: &CstNode) -> bool {
-    let children: Vec<_> = node.children().collect();
-    children.len() == 2
-        && children.first().map(|c| c.kind()) == Some("{")
-        && children.last().map(|c| c.kind()) == Some("}")
+    // Same optimization as is_empty_block
+    let mut iter = node.children();
+    let first = iter.next();
+    let second = iter.next();
+    let third = iter.next();
+
+    first.map(|c| c.kind()) == Some("{")
+        && second.map(|c| c.kind()) == Some("}")
+        && third.is_none()
 }
 
 /// Find the operator node in a binary expression.

@@ -26,6 +26,8 @@ thread_local! {
 struct DispatchTable {
     per_kind: Vec<Vec<usize>>,
     catch_all: Vec<usize>,
+    /// Bitmap of which node kinds have any rules (including catch_all)
+    has_rules: Vec<bool>,
 }
 
 impl DispatchTable {
@@ -72,10 +74,24 @@ impl DispatchTable {
             }
         }
 
+        // Pre-compute which kinds have any rules
+        let has_catch_all = !catch_all.is_empty();
+        let has_rules: Vec<bool> = per_kind
+            .iter()
+            .map(|rules| has_catch_all || !rules.is_empty())
+            .collect();
+
         Self {
             per_kind,
             catch_all,
+            has_rules,
         }
+    }
+
+    /// Quick check if this node kind has any rules to run
+    #[inline]
+    fn has_rules_for_kind(&self, kind_id: u16) -> bool {
+        self.has_rules[kind_id as usize]
     }
 
     fn rule_indices_for_kind(&self, kind_id: u16) -> impl Iterator<Item = usize> + '_ {
@@ -405,7 +421,12 @@ fn fix_file(
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
     let has_suppressions = suppression_ctx.has_suppressions();
     for node in TreeWalker::new(root.inner(), &source) {
-        for rule_idx in dispatch.rule_indices_for_kind(node.kind_id()) {
+        // Quick skip for nodes with no rules
+        let kind_id = node.kind_id();
+        if !dispatch.has_rules_for_kind(kind_id) {
+            continue;
+        }
+        for rule_idx in dispatch.rule_indices_for_kind(kind_id) {
             if suppressed_rules
                 .as_ref()
                 .is_some_and(|mask| mask[rule_idx])
@@ -941,7 +962,12 @@ fn check_file(
 
     let has_suppressions = suppression_ctx.has_suppressions();
     for node in TreeWalker::new(root.inner(), &source) {
-        for rule_idx in dispatch.rule_indices_for_kind(node.kind_id()) {
+        // Quick skip for nodes with no rules
+        let kind_id = node.kind_id();
+        if !dispatch.has_rules_for_kind(kind_id) {
+            continue;
+        }
+        for rule_idx in dispatch.rule_indices_for_kind(kind_id) {
             if suppressed_rules
                 .as_ref()
                 .is_some_and(|mask| mask[rule_idx])

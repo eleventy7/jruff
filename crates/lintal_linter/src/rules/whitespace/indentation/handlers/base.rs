@@ -61,6 +61,8 @@ pub struct HandlerContext<'a> {
     source: &'a str,
     /// Lines of source code (pre-split for efficiency)
     lines: Vec<&'a str>,
+    /// Precomputed byte offsets of each line start (for O(log n) line lookup)
+    line_offsets: Vec<usize>,
     /// Indentation configuration
     config: &'a Indentation,
     /// Tab width for expanding tabs to spaces
@@ -73,9 +75,20 @@ impl<'a> HandlerContext<'a> {
     /// Creates a new handler context.
     pub fn new(source: &'a str, config: &'a Indentation, tab_width: usize) -> Self {
         let lines: Vec<&str> = source.lines().collect();
+
+        // Precompute line start offsets for O(log n) line number lookup
+        let mut line_offsets = Vec::with_capacity(lines.len() + 1);
+        let mut offset = 0;
+        for line in &lines {
+            line_offsets.push(offset);
+            offset += line.len() + 1; // +1 for newline
+        }
+        line_offsets.push(offset); // sentinel for end of file
+
         Self {
             source,
             lines,
+            line_offsets,
             config,
             tab_width,
             diagnostics: RefCell::new(Vec::new()),
@@ -218,30 +231,20 @@ impl<'a> HandlerContext<'a> {
     }
 
     /// Gets the 0-based line number from a byte offset.
+    /// Uses binary search on precomputed line offsets for O(log n) performance.
     fn line_no_from_offset(&self, offset: TextSize) -> usize {
         let offset = usize::from(offset);
-        let mut line = 0;
-        let mut pos = 0;
-        for l in &self.lines {
-            if pos + l.len() >= offset {
-                return line;
-            }
-            pos += l.len() + 1; // +1 for newline
-            line += 1;
+        // Binary search to find the line containing this offset
+        match self.line_offsets.binary_search(&offset) {
+            Ok(line) => line, // Exact match - offset is at start of line
+            Err(line) => line.saturating_sub(1), // In the middle of a line
         }
-        line.saturating_sub(1)
     }
 
     /// Gets the byte offset of the start of a line.
+    /// Uses precomputed line offsets for O(1) performance.
     fn line_start_offset(&self, line_no: usize) -> usize {
-        let mut offset = 0;
-        for (i, line) in self.lines.iter().enumerate() {
-            if i == line_no {
-                return offset;
-            }
-            offset += line.len() + 1; // +1 for newline
-        }
-        offset
+        self.line_offsets.get(line_no).copied().unwrap_or(0)
     }
 
     /// Logs an indentation error.
