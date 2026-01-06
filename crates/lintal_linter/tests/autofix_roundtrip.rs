@@ -39,11 +39,7 @@ fn discover_fixtures(base: &Path) -> Vec<Fixture> {
             let expected = dir.join("Expected.java");
 
             if xml.exists() && java.exists() {
-                let name = dir
-                    .strip_prefix(base)
-                    .unwrap_or(dir)
-                    .display()
-                    .to_string();
+                let name = dir.strip_prefix(base).unwrap_or(dir).display().to_string();
 
                 fixtures.push(Fixture {
                     name,
@@ -73,11 +69,11 @@ fn javac_available() -> bool {
 
 /// Print javac version for CI log history.
 fn print_javac_version() {
-    if let Ok(output) = Command::new("javac").arg("--version").output() {
-        if output.status.success() {
-            let version = String::from_utf8_lossy(&output.stdout);
-            println!("javac version: {}", version.trim());
-        }
+    if let Ok(output) = Command::new("javac").arg("--version").output()
+        && output.status.success()
+    {
+        let version = String::from_utf8_lossy(&output.stdout);
+        println!("javac version: {}", version.trim());
     }
 }
 
@@ -210,8 +206,7 @@ fn test_fixture(fixture: &Fixture) -> Result<(), String> {
             let expected_lines: Vec<&str> = expected_content.lines().collect();
 
             let mut diff_info = String::new();
-            for (i, (fixed, expected)) in
-                fixed_lines.iter().zip(expected_lines.iter()).enumerate()
+            for (i, (fixed, expected)) in fixed_lines.iter().zip(expected_lines.iter()).enumerate()
             {
                 if fixed != expected {
                     diff_info = format!(
@@ -278,7 +273,10 @@ fn test_autofix_roundtrip() {
     println!("Found {} fixtures", fixtures.len());
 
     // Count fixtures with Expected.java
-    let with_expected = fixtures.iter().filter(|f| f.expected_java.is_some()).count();
+    let with_expected = fixtures
+        .iter()
+        .filter(|f| f.expected_java.is_some())
+        .count();
     println!(
         "Fixtures with Expected.java: {}/{}",
         with_expected,
