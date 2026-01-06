@@ -58,7 +58,8 @@ VERSION="${1:?Usage: mise run release <version>}"
 
 echo "Updating crate versions to $VERSION..."
 for cargo_toml in crates/*/Cargo.toml; do
-    sed -i '' "s/^version = \"[0-9]*\\.[0-9]*\\.[0-9]*\"/version = \"$VERSION\"/" "$cargo_toml"
+    awk -v ver="$VERSION" 'BEGIN{} /^version = "/ { printf "version = \\"%s\\"\\n", ver; next } { print }' "$cargo_toml" > "$cargo_toml.tmp"
+    mv "$cargo_toml.tmp" "$cargo_toml"
     echo "  Updated $cargo_toml"
 done
 
