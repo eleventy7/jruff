@@ -6,6 +6,7 @@
 //! 2. Run lintal fix
 //! 3. Compile fixed file (must still succeed)
 //! 4. Run lintal check (must report zero violations)
+//! 5. Compare fixed output with Expected.java (byte-level match)
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,6 +22,8 @@ struct Fixture {
     input_java: PathBuf,
     /// Path to the checkstyle.xml config
     checkstyle_xml: PathBuf,
+    /// Path to the Expected.java file (optional but recommended)
+    expected_java: Option<PathBuf>,
 }
 
 /// Discover all fixture directories under the given base path.
@@ -33,6 +36,7 @@ fn discover_fixtures(base: &Path) -> Vec<Fixture> {
             let dir = entry.path();
             let xml = dir.join("checkstyle.xml");
             let java = dir.join("Input.java");
+            let expected = dir.join("Expected.java");
 
             if xml.exists() && java.exists() {
                 let name = dir
@@ -45,6 +49,11 @@ fn discover_fixtures(base: &Path) -> Vec<Fixture> {
                     name,
                     input_java: java,
                     checkstyle_xml: xml,
+                    expected_java: if expected.exists() {
+                        Some(expected)
+                    } else {
+                        None
+                    },
                 });
             }
         }
@@ -53,13 +62,23 @@ fn discover_fixtures(base: &Path) -> Vec<Fixture> {
     fixtures
 }
 
-/// Check if javac is available in PATH.
+/// Check if javac is available in PATH and print version.
 fn javac_available() -> bool {
     Command::new("javac")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+}
+
+/// Print javac version for CI log history.
+fn print_javac_version() {
+    if let Ok(output) = Command::new("javac").arg("--version").output() {
+        if output.status.success() {
+            let version = String::from_utf8_lossy(&output.stdout);
+            println!("javac version: {}", version.trim());
+        }
+    }
 }
 
 /// Get the path to the lintal binary (built by cargo).
@@ -127,6 +146,10 @@ fn test_fixture(fixture: &Fixture) -> Result<(), String> {
         ));
     }
 
+    // Read the fixed content for comparison
+    let fixed_content =
+        fs::read_to_string(&test_file).map_err(|e| format!("Failed to read fixed file: {}", e))?;
+
     // Step 3: Compile fixed - must still succeed
     let output = Command::new("javac")
         .arg(&test_file)
@@ -134,8 +157,6 @@ fn test_fixture(fixture: &Fixture) -> Result<(), String> {
         .map_err(|e| format!("Failed to run javac on fixed file: {}", e))?;
 
     if !output.status.success() {
-        // Read the fixed file content for debugging
-        let fixed_content = fs::read_to_string(&test_file).unwrap_or_default();
         return Err(format!(
             "Fixed file failed to compile:\n{}\n\nFixed content:\n{}",
             String::from_utf8_lossy(&output.stderr),
@@ -156,11 +177,50 @@ fn test_fixture(fixture: &Fixture) -> Result<(), String> {
 
     // Check for "No violations found" in output
     if !stdout.contains("No violations found") {
-        let fixed_content = fs::read_to_string(&test_file).unwrap_or_default();
         return Err(format!(
             "Violations remain after fix:\n{}\n\nFixed content:\n{}",
             stdout, fixed_content
         ));
+    }
+
+    // Step 5: Compare with Expected.java if present
+    if let Some(expected_path) = &fixture.expected_java {
+        let expected_content = fs::read_to_string(expected_path)
+            .map_err(|e| format!("Failed to read Expected.java: {}", e))?;
+
+        if fixed_content != expected_content {
+            // Find the first differing line for helpful output
+            let fixed_lines: Vec<&str> = fixed_content.lines().collect();
+            let expected_lines: Vec<&str> = expected_content.lines().collect();
+
+            let mut diff_info = String::new();
+            for (i, (fixed, expected)) in
+                fixed_lines.iter().zip(expected_lines.iter()).enumerate()
+            {
+                if fixed != expected {
+                    diff_info = format!(
+                        "First difference at line {}:\n  Expected: {:?}\n  Got:      {:?}",
+                        i + 1,
+                        expected,
+                        fixed
+                    );
+                    break;
+                }
+            }
+
+            if diff_info.is_empty() && fixed_lines.len() != expected_lines.len() {
+                diff_info = format!(
+                    "Line count mismatch: expected {} lines, got {} lines",
+                    expected_lines.len(),
+                    fixed_lines.len()
+                );
+            }
+
+            return Err(format!(
+                "Fixed content does not match Expected.java\n{}\n\n--- Expected ---\n{}\n\n--- Got ---\n{}",
+                diff_info, expected_content, fixed_content
+            ));
+        }
     }
 
     Ok(())
@@ -175,6 +235,9 @@ fn test_autofix_roundtrip() {
         eprintln!("Skipping autofix roundtrip test: javac not found in PATH");
         return;
     }
+
+    // Print javac version for CI log history
+    print_javac_version();
 
     let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/autofix");
 
@@ -197,6 +260,14 @@ fn test_autofix_roundtrip() {
     }
 
     println!("Found {} fixtures", fixtures.len());
+
+    // Count fixtures with Expected.java
+    let with_expected = fixtures.iter().filter(|f| f.expected_java.is_some()).count();
+    println!(
+        "Fixtures with Expected.java: {}/{}",
+        with_expected,
+        fixtures.len()
+    );
 
     let mut failures = Vec::new();
 
