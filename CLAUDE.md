@@ -119,3 +119,49 @@ cat MyClass.java | ./target/debug/dump_java_ast
 ```
 
 Output format: `node_kind [start_line:start_col-end_line:end_col] "text preview"`
+
+## Release Procedure
+
+### 1. Create the release
+
+```bash
+mise run release <version>
+# Example: mise run release 0.1.7
+```
+
+This task automatically:
+- Updates version in all `crates/*/Cargo.toml` files
+- Runs `cargo check`, `fmt`, and `clippy`
+- Builds release binary
+- Commits version bump
+- Pushes to remote
+- Creates and pushes git tag
+- GitHub Actions builds release artifacts
+
+### 2. Update README
+
+After the release build completes, update the version link in README.md:
+
+```markdown
+| GitHub Release | [v0.1.7](https://github.com/eleventy7/lintal/releases/tag/v0.1.7) | Direct download |
+```
+
+### 3. Update Homebrew tap
+
+Update `../homebrew-lintal/Formula/lintal.rb` with new version and SHA256 checksums:
+
+```bash
+# Get SHA256 checksums from release
+gh release download v0.1.7 --pattern "*.sha256" --dir /tmp/sha
+cat /tmp/sha/*.sha256
+
+# Update Formula/lintal.rb:
+# - version "0.1.7"
+# - sha256 for aarch64-apple-darwin
+# - sha256 for x86_64-apple-darwin
+# - sha256 for x86_64-unknown-linux-gnu
+
+# Commit and push
+cd ../homebrew-lintal
+git add -A && git commit -m "Update to v0.1.7" && git push
+```
