@@ -49,13 +49,14 @@ impl RuleRegistry {
     /// Register all built-in rules.
     fn register_builtins(&mut self) {
         use crate::rules::{
-            ArrayTypeStyle, AvoidNestedBlocks, EmptyBlock, EmptyCatchBlock, EmptyForInitializerPad,
-            EmptyLineSeparator, FileTabCharacter, FinalLocalVariable, FinalParameters, Indentation,
-            LeftCurly, MethodParamPad, ModifierOrder, MultipleVariableDeclarations, NeedBraces,
-            NoWhitespaceAfter, NoWhitespaceBefore, OneStatementPerLine, OperatorWrap, ParenPad,
-            RedundantImport, RedundantModifier, RightCurly, SimplifyBooleanReturn,
-            SingleSpaceSeparator, TypecastParenPad, UnusedImports, UpperEll, WhitespaceAfter,
-            WhitespaceAround,
+            ArrayTypeStyle, AvoidNestedBlocks, ConstantName, EmptyBlock, EmptyCatchBlock,
+            EmptyForInitializerPad, EmptyLineSeparator, FileTabCharacter, FinalLocalVariable,
+            FinalParameters, Indentation, LeftCurly, LocalFinalVariableName, LocalVariableName,
+            MemberName, MethodName, MethodParamPad, ModifierOrder, MultipleVariableDeclarations,
+            NeedBraces, NoWhitespaceAfter, NoWhitespaceBefore, OneStatementPerLine, OperatorWrap,
+            PackageName, ParameterName, ParenPad, RedundantImport, RedundantModifier, RightCurly,
+            SimplifyBooleanReturn, SingleSpaceSeparator, StaticVariableName, TypeName,
+            TypecastParenPad, UnusedImports, UpperEll, WhitespaceAfter, WhitespaceAround,
         };
         // Whitespace rules
         self.register::<WhitespaceAround>();
@@ -93,6 +94,16 @@ impl RuleRegistry {
         self.register::<OneStatementPerLine>();
         self.register::<MultipleVariableDeclarations>();
         self.register::<SimplifyBooleanReturn>();
+        // Naming rules
+        self.register::<ConstantName>();
+        self.register::<LocalFinalVariableName>();
+        self.register::<LocalVariableName>();
+        self.register::<MemberName>();
+        self.register::<MethodName>();
+        self.register::<PackageName>();
+        self.register::<ParameterName>();
+        self.register::<StaticVariableName>();
+        self.register::<TypeName>();
     }
 
     /// Create a rule from a module name and properties.
