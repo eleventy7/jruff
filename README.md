@@ -26,13 +26,13 @@ Since introducing lintal, we're spending less time on the checkstyle step—givi
 
 lintal is significantly faster than checkstyle due to native compilation and parallel processing (along with the Ruff heritage).
 
-**Benchmark vs Checkstyle 13.0.0** (same files, 33 of 39 supported rules including Indentation, 10 runs each after warmup):
+**Benchmark vs Checkstyle 13.0.0** (same files, 33 of 39 supported rules including Indentation and Naming, 10 runs each after warmup):
 
 | Repository | Files | Checkstyle | lintal | Speedup |
 |------------|-------|------------|--------|---------|
-| Agrona | 289 | 1.55s ± 0.01s | 0.38s ± 0.05s | **4.1x** |
-| Artio | 726 | 2.71s ± 0.03s | 1.08s ± 0.14s | **2.5x** |
-| Aeron | 935 | 4.90s ± 0.05s | 1.88s ± 0.26s | **2.6x** |
+| Agrona | 289 | 1.66s ± 0.03s | 0.59s ± 0.04s | **2.8x** |
+| Artio | 726 | 2.96s ± 0.03s | 1.53s ± 0.10s | **1.9x** |
+| Aeron | 929 | 5.64s ± 0.38s | 4.12s ± 0.15s | **1.4x** |
 
 ![Benchmark Results](docs/benchmark_results.png)
 
