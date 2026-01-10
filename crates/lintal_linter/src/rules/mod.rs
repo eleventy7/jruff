@@ -4,6 +4,7 @@ pub mod blocks;
 pub mod coding;
 pub mod imports;
 pub mod modifier;
+pub mod naming;
 pub mod style;
 pub mod whitespace;
 
@@ -14,5 +15,9 @@ pub use blocks::{
 pub use coding::{MultipleVariableDeclarations, OneStatementPerLine, SimplifyBooleanReturn};
 pub use imports::{RedundantImport, UnusedImports};
 pub use modifier::{FinalLocalVariable, FinalParameters, ModifierOrder, RedundantModifier};
+pub use naming::{
+    ConstantName, LocalFinalVariableName, LocalVariableName, MemberName, MethodName, PackageName,
+    ParameterName, StaticVariableName, TypeName,
+};
 pub use style::{ArrayTypeStyle, UpperEll};
 pub use whitespace::*;

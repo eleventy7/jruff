@@ -26,13 +26,13 @@ Since introducing lintal, we're spending less time on the checkstyle step—givi
 
 lintal is significantly faster than checkstyle due to native compilation and parallel processing (along with the Ruff heritage).
 
-**Benchmark vs Checkstyle 12.3.0** (same files, 24 of 30 supported rules including Indentation, 10 runs each after warmup):
+**Benchmark vs Checkstyle 13.0.0** (same files, 33 of 39 supported rules including Indentation and Naming, 10 runs each after warmup):
 
 | Repository | Files | Checkstyle | lintal | Speedup |
 |------------|-------|------------|--------|---------|
-| Agrona | 289 | 1.55s ± 0.01s | 0.38s ± 0.05s | **4.1x** |
-| Artio | 726 | 2.71s ± 0.03s | 1.08s ± 0.14s | **2.5x** |
-| Aeron | 935 | 4.90s ± 0.05s | 1.88s ± 0.26s | **2.6x** |
+| Agrona | 289 | 1.57s ± 0.02s | 0.37s ± 0.03s | **4.3x** |
+| Artio | 726 | 2.71s ± 0.01s | 1.03s ± 0.14s | **2.6x** |
+| Aeron | 935 | 4.93s ± 0.04s | 1.91s ± 0.20s | **2.6x** |
 
 ![Benchmark Results](docs/benchmark_results.png)
 
@@ -90,7 +90,7 @@ lintal fix src/ --diff
 
 ## Supported Rules
 
-lintal currently implements 30 checkstyle rules. We validate against checkstyle's own test fixtures and real-world projects.
+lintal currently implements 39 checkstyle rules. We validate against checkstyle's own test fixtures and real-world projects.
 
 **Status key:**
 - ✓ = Passes all checkstyle test fixtures
@@ -157,6 +157,20 @@ All rules achieve zero false positives on real-world projects (Aeron, Artio, Agr
 | OneStatementPerLine | ✅ | ✓ |
 | MultipleVariableDeclarations | ✅ (partial) | ✓ |
 | SimplifyBooleanReturn | ❌ | ✓ |
+
+### Naming (9 rules)
+
+| Rule | Auto-fix | Status |
+|------|----------|--------|
+| ConstantName | ❌ | ✓ |
+| TypeName | ❌ | ✓ |
+| MethodName | ❌ | ✓ |
+| MemberName | ❌ | ✓ |
+| ParameterName | ❌ | ✓ |
+| LocalVariableName | ❌ | ✓ |
+| LocalFinalVariableName | ❌ | ✓ |
+| StaticVariableName | ❌ | ✓ |
+| PackageName | ❌ | ✓ |
 
 ## Development
 

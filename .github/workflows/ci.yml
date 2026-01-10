@@ -73,7 +73,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target/checkstyle-tests
-          key: checkstyle-12.3.0-${{ hashFiles('crates/lintal_linter/tests/checkstyle_repo.rs') }}
+          key: checkstyle-13.0.0-${{ hashFiles('crates/lintal_linter/tests/checkstyle_repo.rs') }}
 
       - name: Run compatibility tests
         run: |
@@ -107,6 +107,7 @@ jobs:
           cargo test --package lintal_linter --test checkstyle_simplifybooleanreturn
           cargo test --package lintal_linter --test checkstyle_emptylineseparator
           cargo test --package lintal_linter --test checkstyle_indentation
+          cargo test --package lintal_linter --test naming_conventions_progress
 
   # Real-world project tests (ensures lintal works on production codebases)
   real-world-tests:
