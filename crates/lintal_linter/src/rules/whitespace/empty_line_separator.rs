@@ -6,8 +6,9 @@
 
 use std::collections::HashSet;
 
-use lintal_diagnostics::{Diagnostic, FixAvailability, Violation};
+use lintal_diagnostics::{Diagnostic, Edit, Fix, FixAvailability, Violation};
 use lintal_java_cst::CstNode;
+use lintal_text_size::{TextRange, TextSize};
 
 use crate::{CheckContext, FromConfig, Properties, Rule};
 
@@ -231,12 +232,13 @@ impl Rule for EmptyLineSeparator {
         RELEVANT_KINDS
     }
 
-    fn check(&self, _ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
+    fn check(&self, ctx: &CheckContext, node: &CstNode) -> Vec<Diagnostic> {
         let kind = node.kind();
+        let source = ctx.source();
 
         // Handle file-level checks (program node)
         if kind == "program" {
-            return self.check_program(node);
+            return self.check_program(node, source);
         }
 
         // Only process container bodies
@@ -296,6 +298,12 @@ impl Rule for EmptyLineSeparator {
         let mut prev_code_end_line: Option<usize> = enum_const_end_line.or(open_brace_line);
         // Track previous ANYTHING end line (for "too many empty lines" checks on comments)
         let mut prev_anything_end_line: Option<usize> = enum_const_end_line.or(open_brace_line);
+        // Track previous element byte positions for fix generation
+        let mut prev_code_end_byte: Option<usize> = children
+            .iter()
+            .find(|c| c.kind() == "{")
+            .map(|c| c.end_byte());
+        let mut prev_anything_end_byte: Option<usize> = prev_code_end_byte;
         let mut prev_was_field = false;
         let mut is_first_member = enum_const_end_line.is_none(); // First member (after brace)
         let mut reported_violation_for_gap = false; // Track if we've reported for current gap
@@ -376,19 +384,31 @@ impl Rule for EmptyLineSeparator {
                     } else {
                         "/*"
                     };
-                    let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                    let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                    diagnostics.push(Diagnostic::new(
+                    let start = TextSize::from(child.start_byte() as u32);
+                    let end = TextSize::from(child.start_byte() as u32 + 1);
+                    let mut diag = Diagnostic::new(
                         CommentTooManyEmptyLines {
                             comment_start: comment_start.to_string(),
                         },
-                        lintal_text_size::TextRange::new(start, end),
-                    ));
+                        TextRange::new(start, end),
+                    );
+                    // Add fix to delete excess blank lines
+                    if let Some(prev_byte) = prev_anything_end_byte
+                        && let Some(fix) = self.create_delete_excess_lines_fix(
+                            source,
+                            prev_byte,
+                            child.start_byte(),
+                        )
+                    {
+                        diag = diag.with_fix(fix);
+                    }
+                    diagnostics.push(diag);
                     // Mark that we've reported for this gap
                     reported_violation_for_gap = true;
                 }
                 // Update prev_anything_end_line to track this comment (but NOT prev_code_end_line)
                 prev_anything_end_line = Some(child.end_position().row);
+                prev_anything_end_byte = Some(child.end_byte());
                 continue;
             }
 
@@ -411,7 +431,7 @@ impl Rule for EmptyLineSeparator {
 
             // Check for multiple empty lines before comments inside modifiers.
             if !self.allow_multiple_empty_lines {
-                diagnostics.extend(self.check_modifier_comment_spacing(child));
+                diagnostics.extend(self.check_modifier_comment_spacing(child, source));
             }
 
             // Check if blank line is needed
@@ -436,15 +456,25 @@ impl Rule for EmptyLineSeparator {
                         let empty_lines =
                             self.count_empty_lines_before(&children, child, prev_code_line);
                         if empty_lines > 1 {
-                            let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                            let end =
-                                lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                            diagnostics.push(Diagnostic::new(
+                            let start = TextSize::from(child.start_byte() as u32);
+                            let end = TextSize::from(child.start_byte() as u32 + 1);
+                            let mut diag = Diagnostic::new(
                                 TooManyEmptyLines {
                                     element: token.to_checkstyle_name().to_string(),
                                 },
-                                lintal_text_size::TextRange::new(start, end),
-                            ));
+                                TextRange::new(start, end),
+                            );
+                            // Add fix to delete excess blank lines
+                            if let Some(prev_byte) = prev_code_end_byte
+                                && let Some(fix) = self.create_delete_excess_lines_fix(
+                                    source,
+                                    prev_byte,
+                                    child.start_byte(),
+                                )
+                            {
+                                diag = diag.with_fix(fix);
+                            }
+                            diagnostics.push(diag);
                         }
                     }
                 } else if !has_blank {
@@ -452,14 +482,21 @@ impl Rule for EmptyLineSeparator {
                     if field_to_field && self.allow_no_empty_line_between_fields {
                         // OK, no violation
                     } else if let Some(token) = token_type {
-                        let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                        let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                        diagnostics.push(Diagnostic::new(
+                        let start = TextSize::from(child.start_byte() as u32);
+                        let end = TextSize::from(child.start_byte() as u32 + 1);
+                        let mut diag = Diagnostic::new(
                             ShouldBeSeparated {
                                 element: token.to_checkstyle_name().to_string(),
                             },
-                            lintal_text_size::TextRange::new(start, end),
-                        ));
+                            TextRange::new(start, end),
+                        );
+                        // Add fix to insert a blank line
+                        if let Some(fix) =
+                            self.create_insert_blank_line_fix(source, child.start_byte())
+                        {
+                            diag = diag.with_fix(fix);
+                        }
+                        diagnostics.push(diag);
                     }
                 } else if !self.allow_multiple_empty_lines
                     && !reported_violation_for_gap
@@ -469,14 +506,25 @@ impl Rule for EmptyLineSeparator {
                     let empty_lines =
                         self.count_empty_lines_before(&children, child, prev_code_line);
                     if empty_lines > 1 {
-                        let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                        let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                        diagnostics.push(Diagnostic::new(
+                        let start = TextSize::from(child.start_byte() as u32);
+                        let end = TextSize::from(child.start_byte() as u32 + 1);
+                        let mut diag = Diagnostic::new(
                             TooManyEmptyLines {
                                 element: token.to_checkstyle_name().to_string(),
                             },
-                            lintal_text_size::TextRange::new(start, end),
-                        ));
+                            TextRange::new(start, end),
+                        );
+                        // Add fix to delete excess blank lines
+                        if let Some(prev_byte) = prev_code_end_byte
+                            && let Some(fix) = self.create_delete_excess_lines_fix(
+                                source,
+                                prev_byte,
+                                child.start_byte(),
+                            )
+                        {
+                            diag = diag.with_fix(fix);
+                        }
+                        diagnostics.push(diag);
                     }
                 }
             }
@@ -484,6 +532,8 @@ impl Rule for EmptyLineSeparator {
             // Update both tracking variables
             prev_code_end_line = Some(child.end_position().row);
             prev_anything_end_line = Some(child.end_position().row);
+            prev_code_end_byte = Some(child.end_byte());
+            prev_anything_end_byte = Some(child.end_byte());
             prev_was_field = token_type == Some(EmptyLineSeparatorToken::VariableDef);
             is_first_member = false;
             // Reset the flag after processing a code element
@@ -493,30 +543,39 @@ impl Rule for EmptyLineSeparator {
         // Check for multiple empty lines before the closing brace (TooManyEmptyLinesAfter)
         // Use prev_anything_end_line to account for comments between last member and closing brace
         if !self.allow_multiple_empty_lines
-            && let Some(last_content_end) = prev_anything_end_line
+            && let Some(_last_content_end) = prev_anything_end_line
             && let Some(close_brace) = children.iter().rev().find(|c| c.kind() == "}")
         {
             let close_brace_line = close_brace.start_position().row;
             // Count blank lines between last content (including comments) and closing brace
-            let empty_count = close_brace_line.saturating_sub(last_content_end + 1);
-            if empty_count > 1
-                && let Some(last_child) = children
-                    .iter()
-                    .rev()
-                    .find(|c| c.kind() != "{" && c.kind() != "}")
+            if let Some(last_child) = children
+                .iter()
+                .rev()
+                .find(|c| c.kind() != "{" && c.kind() != "}")
             {
-                let start = lintal_text_size::TextSize::from(last_child.end_byte() as u32 - 1);
-                let end = lintal_text_size::TextSize::from(last_child.end_byte() as u32);
-                diagnostics.push(Diagnostic::new(
-                    TooManyEmptyLinesAfter,
-                    lintal_text_size::TextRange::new(start, end),
-                ));
+                let empty_count =
+                    close_brace_line.saturating_sub(last_child.end_position().row + 1);
+                if empty_count > 1 {
+                    let start = TextSize::from(last_child.end_byte() as u32 - 1);
+                    let end = TextSize::from(last_child.end_byte() as u32);
+                    let mut diag =
+                        Diagnostic::new(TooManyEmptyLinesAfter, TextRange::new(start, end));
+                    // Add fix to delete excess blank lines (keep 1 line before closing brace)
+                    if let Some(fix) = self.create_delete_all_excess_lines_fix(
+                        source,
+                        last_child.end_byte(),
+                        close_brace.start_byte(),
+                    ) {
+                        diag = diag.with_fix(fix);
+                    }
+                    diagnostics.push(diag);
+                }
             }
         }
 
         // Check for multiple empty lines inside class members (TooManyEmptyLinesInside)
         if !self.allow_multiple_empty_lines_inside_class_members {
-            diagnostics.extend(self.check_inside_members(&children));
+            diagnostics.extend(self.check_inside_members(&children, source));
         }
 
         diagnostics
@@ -546,7 +605,11 @@ impl EmptyLineSeparator {
 
     /// Check for multiple consecutive empty lines inside method/ctor/init bodies.
     /// Only checks members whose token type is in the configured tokens set.
-    fn check_inside_members(&self, children: &[tree_sitter::Node]) -> Vec<Diagnostic> {
+    fn check_inside_members(
+        &self,
+        children: &[tree_sitter::Node],
+        source: &str,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
         for child in children {
@@ -557,18 +620,20 @@ impl EmptyLineSeparator {
                     if self.tokens.contains(&EmptyLineSeparatorToken::MethodDef)
                         && let Some(body) = child.child_by_field_name("body")
                     {
-                        diagnostics.extend(self.check_block_for_multiple_empty_lines(&body));
+                        diagnostics
+                            .extend(self.check_block_for_multiple_empty_lines(&body, source));
                         // Also check nested array initializers
-                        diagnostics.extend(self.find_and_check_array_initializers(&body));
+                        diagnostics.extend(self.find_and_check_array_initializers(&body, source));
                     }
                 }
                 "constructor_declaration" => {
                     if self.tokens.contains(&EmptyLineSeparatorToken::CtorDef)
                         && let Some(body) = child.child_by_field_name("body")
                     {
-                        diagnostics.extend(self.check_block_for_multiple_empty_lines(&body));
+                        diagnostics
+                            .extend(self.check_block_for_multiple_empty_lines(&body, source));
                         // Also check nested array initializers
-                        diagnostics.extend(self.find_and_check_array_initializers(&body));
+                        diagnostics.extend(self.find_and_check_array_initializers(&body, source));
                     }
                 }
                 "static_initializer" => {
@@ -576,10 +641,12 @@ impl EmptyLineSeparator {
                         let mut cursor = child.walk();
                         for inner in child.children(&mut cursor) {
                             if inner.kind() == "block" {
-                                diagnostics
-                                    .extend(self.check_block_for_multiple_empty_lines(&inner));
+                                diagnostics.extend(
+                                    self.check_block_for_multiple_empty_lines(&inner, source),
+                                );
                                 // Also check nested array initializers
-                                diagnostics.extend(self.find_and_check_array_initializers(&inner));
+                                diagnostics
+                                    .extend(self.find_and_check_array_initializers(&inner, source));
                                 break;
                             }
                         }
@@ -588,9 +655,10 @@ impl EmptyLineSeparator {
                 "block" => {
                     // This is an instance initializer - check the block itself
                     if self.tokens.contains(&EmptyLineSeparatorToken::InstanceInit) {
-                        diagnostics.extend(self.check_block_for_multiple_empty_lines(child));
+                        diagnostics
+                            .extend(self.check_block_for_multiple_empty_lines(child, source));
                         // Also check nested array initializers
-                        diagnostics.extend(self.find_and_check_array_initializers(child));
+                        diagnostics.extend(self.find_and_check_array_initializers(child, source));
                     }
                 }
                 "compact_constructor_declaration" => {
@@ -602,9 +670,11 @@ impl EmptyLineSeparator {
                         let mut cursor = child.walk();
                         for inner in child.children(&mut cursor) {
                             if inner.kind() == "block" {
+                                diagnostics.extend(
+                                    self.check_block_for_multiple_empty_lines(&inner, source),
+                                );
                                 diagnostics
-                                    .extend(self.check_block_for_multiple_empty_lines(&inner));
-                                diagnostics.extend(self.find_and_check_array_initializers(&inner));
+                                    .extend(self.find_and_check_array_initializers(&inner, source));
                                 break;
                             }
                         }
@@ -618,7 +688,11 @@ impl EmptyLineSeparator {
     }
 
     /// Check a block (or constructor_body or array_initializer) for consecutive empty lines.
-    fn check_block_for_multiple_empty_lines(&self, block: &tree_sitter::Node) -> Vec<Diagnostic> {
+    fn check_block_for_multiple_empty_lines(
+        &self,
+        block: &tree_sitter::Node,
+        source: &str,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
         // Handle "block", "constructor_body", and "array_initializer" node types
@@ -810,12 +884,22 @@ impl EmptyLineSeparator {
                     };
 
                     let byte_offset = self.find_line_end_byte(block, report_line);
-                    let start = lintal_text_size::TextSize::from(byte_offset as u32);
-                    let end = lintal_text_size::TextSize::from(byte_offset as u32 + 1);
-                    diagnostics.push(Diagnostic::new(
-                        TooManyEmptyLinesInside,
-                        lintal_text_size::TextRange::new(start, end),
-                    ));
+                    let start = TextSize::from(byte_offset as u32);
+                    let end = TextSize::from(byte_offset as u32 + 1);
+                    let mut diag =
+                        Diagnostic::new(TooManyEmptyLinesInside, TextRange::new(start, end));
+                    // Add fix to delete excess blank lines
+                    // Find the actual next content line (not just line + 1, which might be empty)
+                    let next_content_line = (line + 1..=end_line)
+                        .find(|l| content_lines.contains(l))
+                        .unwrap_or(end_line);
+                    let next_content_byte = self.find_line_start_byte(block, next_content_line);
+                    if let Some(fix) =
+                        self.create_delete_excess_lines_fix(source, byte_offset, next_content_byte)
+                    {
+                        diag = diag.with_fix(fix);
+                    }
+                    diagnostics.push(diag);
                     // Mark that we've reported for this gap - don't report again until we hit content
                     reported_for_current_gap = true;
                     // For array initializers, also report on the element after the gap,
@@ -833,11 +917,12 @@ impl EmptyLineSeparator {
                 if need_report_on_next_code && is_code {
                     // Report on this code element for having too many empty lines BEFORE it
                     let byte_offset = self.find_line_start_byte(block, line);
-                    let start = lintal_text_size::TextSize::from(byte_offset as u32);
-                    let end = lintal_text_size::TextSize::from(byte_offset as u32 + 1);
+                    let start = TextSize::from(byte_offset as u32);
+                    let end = TextSize::from(byte_offset as u32 + 1);
+                    // Note: Fix was already added to the previous violation
                     diagnostics.push(Diagnostic::new(
                         TooManyEmptyLinesInside,
-                        lintal_text_size::TextRange::new(start, end),
+                        TextRange::new(start, end),
                     ));
                 }
 
@@ -902,18 +987,22 @@ impl EmptyLineSeparator {
     }
 
     /// Recursively find all array_initializer nodes and check them for consecutive empty lines.
-    fn find_and_check_array_initializers(&self, node: &tree_sitter::Node) -> Vec<Diagnostic> {
+    fn find_and_check_array_initializers(
+        &self,
+        node: &tree_sitter::Node,
+        source: &str,
+    ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
         // Check if this node is an array_initializer
         if node.kind() == "array_initializer" {
-            diagnostics.extend(self.check_block_for_multiple_empty_lines(node));
+            diagnostics.extend(self.check_block_for_multiple_empty_lines(node, source));
         }
 
         // Recursively check children
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            diagnostics.extend(self.find_and_check_array_initializers(&child));
+            diagnostics.extend(self.find_and_check_array_initializers(&child, source));
         }
 
         diagnostics
@@ -975,16 +1064,15 @@ impl EmptyLineSeparator {
     fn check_modifier_comment_spacing(
         &self,
         node: &tree_sitter::Node,
+        source: &str,
     ) -> Vec<Diagnostic> {
         let mut diagnostics = vec![];
 
-        let modifiers = node
-            .child_by_field_name("modifiers")
-            .or_else(|| {
-                let mut cursor = node.walk();
-                node.children(&mut cursor)
-                    .find(|child| child.kind() == "modifiers")
-            });
+        let modifiers = node.child_by_field_name("modifiers").or_else(|| {
+            let mut cursor = node.walk();
+            node.children(&mut cursor)
+                .find(|child| child.kind() == "modifiers")
+        });
 
         let Some(modifiers) = modifiers else {
             return diagnostics;
@@ -993,31 +1081,45 @@ impl EmptyLineSeparator {
         let mut cursor = modifiers.walk();
         let children: Vec<_> = modifiers.children(&mut cursor).collect();
         let mut prev_end_line: Option<usize> = None;
+        let mut prev_end_byte: Option<usize> = None;
 
         for child in children {
             let is_comment = child.kind() == "line_comment" || child.kind() == "block_comment";
             if is_comment {
-                if let Some(prev_line) = prev_end_line {
-                    let empty_lines = child.start_position().row.saturating_sub(prev_line + 1);
+                if let Some(_prev_line) = prev_end_line {
+                    let empty_lines = child.start_position().row.saturating_sub(_prev_line + 1);
                     if empty_lines > 1 {
                         let comment_start = if child.kind() == "line_comment" {
                             "//"
                         } else {
                             "/*"
                         };
-                        let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                        let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                        diagnostics.push(Diagnostic::new(
+                        let start = TextSize::from(child.start_byte() as u32);
+                        let end = TextSize::from(child.start_byte() as u32 + 1);
+                        let mut diag = Diagnostic::new(
                             CommentTooManyEmptyLines {
                                 comment_start: comment_start.to_string(),
                             },
-                            lintal_text_size::TextRange::new(start, end),
-                        ));
+                            TextRange::new(start, end),
+                        );
+                        // Add fix to delete excess blank lines
+                        if let Some(prev_byte) = prev_end_byte
+                            && let Some(fix) = self.create_delete_excess_lines_fix(
+                                source,
+                                prev_byte,
+                                child.start_byte(),
+                            )
+                        {
+                            diag = diag.with_fix(fix);
+                        }
+                        diagnostics.push(diag);
                     }
                 }
                 prev_end_line = Some(child.end_position().row);
+                prev_end_byte = Some(child.end_byte());
             } else if !child.is_extra() {
                 prev_end_line = Some(child.end_position().row);
+                prev_end_byte = Some(child.end_byte());
             }
         }
 
@@ -1094,7 +1196,7 @@ impl EmptyLineSeparator {
     }
 
     /// Check file-level separation (package, imports, type declarations).
-    fn check_program(&self, node: &CstNode) -> Vec<Diagnostic> {
+    fn check_program(&self, node: &CstNode, source: &str) -> Vec<Diagnostic> {
         let ts_node = node.inner();
         let mut diagnostics = vec![];
 
@@ -1103,9 +1205,11 @@ impl EmptyLineSeparator {
 
         // Find the end of file-level header comments (block comment at start of file)
         let mut file_header_end_line: Option<usize> = None;
+        let mut file_header_end_byte: Option<usize> = None;
         for child in &children {
             if child.kind() == "block_comment" && child.start_position().row == 0 {
                 file_header_end_line = Some(child.end_position().row);
+                file_header_end_byte = Some(child.end_byte());
             } else if !child.is_extra() {
                 break;
             }
@@ -1114,8 +1218,10 @@ impl EmptyLineSeparator {
         // Track previous CODE element end line (for "should be separated" checks)
         let mut prev_code_end_line: Option<usize> = file_header_end_line;
         let mut prev_code_start_line: Option<usize> = None;
+        let mut prev_code_end_byte: Option<usize> = file_header_end_byte;
         // Track previous ANYTHING end line (for "too many empty lines" checks on comments)
         let mut prev_anything_end_line: Option<usize> = file_header_end_line;
+        let mut prev_anything_end_byte: Option<usize> = file_header_end_byte;
         let mut prev_token: Option<EmptyLineSeparatorToken> = None;
         let mut is_first_code_element = true;
         let mut reported_violation_for_gap = false; // Track if we've reported for current gap
@@ -1159,41 +1265,60 @@ impl EmptyLineSeparator {
                         } else {
                             "/*"
                         };
-                        let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                        let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                        diagnostics.push(Diagnostic::new(
+                        let start = TextSize::from(child.start_byte() as u32);
+                        let end = TextSize::from(child.start_byte() as u32 + 1);
+                        let mut diag = Diagnostic::new(
                             ShouldBeSeparated {
                                 element: comment_start.to_string(),
                             },
-                            lintal_text_size::TextRange::new(start, end),
-                        ));
+                            TextRange::new(start, end),
+                        );
+                        // Add fix to insert a blank line
+                        if let Some(fix) =
+                            self.create_insert_blank_line_fix(source, child.start_byte())
+                        {
+                            diag = diag.with_fix(fix);
+                        }
+                        diagnostics.push(diag);
                     }
                 }
 
                 // When allowMultipleEmptyLines=false, check comments for too many empty lines before
                 if !self.allow_multiple_empty_lines
-                    && let Some(prev_line) = prev_anything_end_line
-                    && comment_line.saturating_sub(prev_line + 1) > 1
+                    && let Some(_prev_line) = prev_anything_end_line
+                    && comment_line.saturating_sub(_prev_line + 1) > 1
                 {
                     let comment_start = if child.kind() == "line_comment" {
                         "//"
                     } else {
                         "/*"
                     };
-                    let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                    let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                    diagnostics.push(Diagnostic::new(
+                    let start = TextSize::from(child.start_byte() as u32);
+                    let end = TextSize::from(child.start_byte() as u32 + 1);
+                    let mut diag = Diagnostic::new(
                         CommentTooManyEmptyLines {
                             comment_start: comment_start.to_string(),
                         },
-                        lintal_text_size::TextRange::new(start, end),
-                    ));
+                        TextRange::new(start, end),
+                    );
+                    // Add fix to delete excess blank lines
+                    if let Some(prev_byte) = prev_anything_end_byte
+                        && let Some(fix) = self.create_delete_excess_lines_fix(
+                            source,
+                            prev_byte,
+                            child.start_byte(),
+                        )
+                    {
+                        diag = diag.with_fix(fix);
+                    }
+                    diagnostics.push(diag);
                     // Mark that we've reported for this gap
                     reported_violation_for_gap = true;
                 }
 
                 // Update prev_anything_end_line to track this comment (but NOT prev_code_end_line)
                 prev_anything_end_line = Some(child.end_position().row);
+                prev_anything_end_byte = Some(child.end_byte());
                 // Reset trailing-comment flag once we hit a new-line comment
                 had_trailing_comment_after_package = false;
                 continue;
@@ -1233,7 +1358,7 @@ impl EmptyLineSeparator {
 
             // Check for multiple empty lines before comments inside modifiers.
             if !self.allow_multiple_empty_lines {
-                diagnostics.extend(self.check_modifier_comment_spacing(&child));
+                diagnostics.extend(self.check_modifier_comment_spacing(child, source));
             }
 
             // For first code element after file header, check for separation and multiple empty lines
@@ -1261,26 +1386,43 @@ impl EmptyLineSeparator {
 
                 // Check for "should be separated" - package after file header/comment needs a blank line
                 if !has_blank && token == EmptyLineSeparatorToken::PackageDef {
-                    let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                    let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                    diagnostics.push(Diagnostic::new(
+                    let start = TextSize::from(child.start_byte() as u32);
+                    let end = TextSize::from(child.start_byte() as u32 + 1);
+                    let mut diag = Diagnostic::new(
                         ShouldBeSeparated {
                             element: token.to_checkstyle_name().to_string(),
                         },
-                        lintal_text_size::TextRange::new(start, end),
-                    ));
+                        TextRange::new(start, end),
+                    );
+                    // Add fix to insert a blank line
+                    if let Some(fix) = self.create_insert_blank_line_fix(source, child.start_byte())
+                    {
+                        diag = diag.with_fix(fix);
+                    }
+                    diagnostics.push(diag);
                 } else if !self.allow_multiple_empty_lines && !reported_violation_for_gap {
                     // Check for "too many empty lines"
                     let empty_lines = element_line.saturating_sub(header_end + 1);
                     if empty_lines > 1 {
-                        let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                        let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                        diagnostics.push(Diagnostic::new(
+                        let start = TextSize::from(child.start_byte() as u32);
+                        let end = TextSize::from(child.start_byte() as u32 + 1);
+                        let mut diag = Diagnostic::new(
                             TooManyEmptyLines {
                                 element: token.to_checkstyle_name().to_string(),
                             },
-                            lintal_text_size::TextRange::new(start, end),
-                        ));
+                            TextRange::new(start, end),
+                        );
+                        // Add fix to delete excess blank lines
+                        if let Some(header_byte) = file_header_end_byte
+                            && let Some(fix) = self.create_delete_excess_lines_fix(
+                                source,
+                                header_byte,
+                                child.start_byte(),
+                            )
+                        {
+                            diag = diag.with_fix(fix);
+                        }
+                        diagnostics.push(diag);
                     }
                 }
             }
@@ -1356,31 +1498,45 @@ impl EmptyLineSeparator {
                 };
 
                 if needs_separation && !has_blank {
-                    let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                    let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                    diagnostics.push(Diagnostic::new(
+                    let start = TextSize::from(child.start_byte() as u32);
+                    let end = TextSize::from(child.start_byte() as u32 + 1);
+                    let mut diag = Diagnostic::new(
                         ShouldBeSeparated {
                             element: token.to_checkstyle_name().to_string(),
                         },
-                        lintal_text_size::TextRange::new(start, end),
-                    ));
-                } else if has_blank
-                    && !self.allow_multiple_empty_lines
-                    && prev_token.is_some()
-                {
+                        TextRange::new(start, end),
+                    );
+                    // Add fix to insert a blank line
+                    if let Some(fix) = self.create_insert_blank_line_fix(source, child.start_byte())
+                    {
+                        diag = diag.with_fix(fix);
+                    }
+                    diagnostics.push(diag);
+                } else if has_blank && !self.allow_multiple_empty_lines && prev_token.is_some() {
                     // Check for multiple empty lines (both when needs_separation and when not)
                     // At program level, we check each element independently
                     let empty_lines =
                         self.count_empty_lines_before_program(&children, child, prev_code_line);
                     if empty_lines > 1 {
-                        let start = lintal_text_size::TextSize::from(child.start_byte() as u32);
-                        let end = lintal_text_size::TextSize::from(child.start_byte() as u32 + 1);
-                        diagnostics.push(Diagnostic::new(
+                        let start = TextSize::from(child.start_byte() as u32);
+                        let end = TextSize::from(child.start_byte() as u32 + 1);
+                        let mut diag = Diagnostic::new(
                             TooManyEmptyLines {
                                 element: token.to_checkstyle_name().to_string(),
                             },
-                            lintal_text_size::TextRange::new(start, end),
-                        ));
+                            TextRange::new(start, end),
+                        );
+                        // Add fix to delete excess blank lines
+                        if let Some(prev_byte) = prev_code_end_byte
+                            && let Some(fix) = self.create_delete_excess_lines_fix(
+                                source,
+                                prev_byte,
+                                child.start_byte(),
+                            )
+                        {
+                            diag = diag.with_fix(fix);
+                        }
+                        diagnostics.push(diag);
                     }
                 }
             }
@@ -1388,7 +1544,9 @@ impl EmptyLineSeparator {
             // Update both tracking variables
             prev_code_start_line = Some(child.start_position().row);
             prev_code_end_line = Some(child.end_position().row);
+            prev_code_end_byte = Some(child.end_byte());
             prev_anything_end_line = Some(child.end_position().row);
+            prev_anything_end_byte = Some(child.end_byte());
             prev_token = Some(token);
             had_trailing_comment_after_package = false;
             // Reset the flag after processing a code element
@@ -1487,6 +1645,92 @@ impl EmptyLineSeparator {
             count
         } else {
             0
+        }
+    }
+
+    /// Create a fix that inserts a blank line before an element.
+    /// `prev_line_end_byte` is the byte position at the end of the previous line's content.
+    fn create_insert_blank_line_fix(&self, source: &str, element_start_byte: usize) -> Option<Fix> {
+        // Find the start of the line containing the element
+        let line_start = source[..element_start_byte]
+            .rfind('\n')
+            .map(|pos| pos + 1)
+            .unwrap_or(0);
+
+        // Insert a newline at the start of this line (which adds a blank line before)
+        let insert_pos = TextSize::new(line_start as u32);
+        Some(Fix::safe_edit(Edit::insertion(
+            "\n".to_string(),
+            insert_pos,
+        )))
+    }
+
+    /// Create a fix that deletes excess blank lines, keeping exactly one.
+    /// `content_end_byte` is the byte position after the last content before the gap.
+    /// `next_content_start_byte` is the byte position of the content after the gap.
+    fn create_delete_excess_lines_fix(
+        &self,
+        source: &str,
+        content_end_byte: usize,
+        next_content_start_byte: usize,
+    ) -> Option<Fix> {
+        // Find where we need to delete from and to
+        // We want to keep: content + \n + \n (one blank line) + next_content
+        // So we delete from content_end_byte + 2 newlines to the start of next_content's line
+
+        // Find the end of the line after content (first \n after content_end_byte)
+        let first_newline = source[content_end_byte..]
+            .find('\n')
+            .map(|pos| content_end_byte + pos)?;
+
+        // Find the second newline (end of the blank line we want to keep)
+        let second_newline = source[first_newline + 1..]
+            .find('\n')
+            .map(|pos| first_newline + 1 + pos)?;
+
+        // Find the start of the line containing next_content
+        let next_line_start = source[..next_content_start_byte]
+            .rfind('\n')
+            .map(|pos| pos + 1)
+            .unwrap_or(0);
+
+        // Delete from after second newline to the start of next_content's line
+        if second_newline + 1 < next_line_start {
+            let start = TextSize::new((second_newline + 1) as u32);
+            let end = TextSize::new(next_line_start as u32);
+            Some(Fix::safe_edit(Edit::deletion(start, end)))
+        } else {
+            None
+        }
+    }
+
+    /// Create a fix that deletes excess blank lines when we don't want any blank lines.
+    /// Used for TooManyEmptyLinesAfter where we want 0 blank lines, not 1.
+    fn create_delete_all_excess_lines_fix(
+        &self,
+        source: &str,
+        content_end_byte: usize,
+        next_content_start_byte: usize,
+    ) -> Option<Fix> {
+        // Find the end of the content line (first \n after content_end_byte)
+        let first_newline = source[content_end_byte..]
+            .find('\n')
+            .map(|pos| content_end_byte + pos)?;
+
+        // Find the start of the line containing next_content
+        let next_line_start = source[..next_content_start_byte]
+            .rfind('\n')
+            .map(|pos| pos + 1)
+            .unwrap_or(0);
+
+        // Delete from after first newline to the start of next_content's line
+        // This keeps exactly one newline (the line break after content)
+        if first_newline + 1 < next_line_start {
+            let start = TextSize::new((first_newline + 1) as u32);
+            let end = TextSize::new(next_line_start as u32);
+            Some(Fix::safe_edit(Edit::deletion(start, end)))
+        } else {
+            None
         }
     }
 }

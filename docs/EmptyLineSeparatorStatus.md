@@ -54,11 +54,37 @@ The tests use checkstyle's own test fixtures, cloned to `target/checkstyle-tests
 
 ## Violation Types
 
-1. **ShouldBeSeparated**: Element should have a blank line before it
-2. **TooManyEmptyLines**: Element has more than 1 empty line before it
-3. **TooManyEmptyLinesAfter**: Closing brace has more than 1 empty line after last content
-4. **TooManyEmptyLinesInside**: More than 1 consecutive empty line inside a method/constructor
-5. **CommentTooManyEmptyLines**: Comment has more than 1 empty line before it
+| Violation | Description | Auto-fix |
+|-----------|-------------|----------|
+| **ShouldBeSeparated** | Element should have a blank line before it | Inserts blank line |
+| **TooManyEmptyLines** | Element has more than 1 empty line before it | Deletes excess lines |
+| **TooManyEmptyLinesAfter** | Closing brace has more than 1 empty line after last content | Deletes excess lines |
+| **TooManyEmptyLinesInside** | More than 1 consecutive empty line inside a method/constructor | Deletes excess lines |
+| **CommentTooManyEmptyLines** | Comment has more than 1 empty line before it | Deletes excess lines |
+
+## Auto-fix Support
+
+All violation types support automatic fixing:
+
+```bash
+# Fix EmptyLineSeparator violations
+./target/release/lintal fix /path/to/java/src
+```
+
+### Auto-fix Test Fixtures
+
+Auto-fix roundtrip tests are located in:
+```
+crates/lintal_linter/tests/fixtures/autofix/whitespace/empty_line_separator/
+├── should_be_separated/     # Tests insertion of blank lines
+├── too_many_empty_lines/    # Tests deletion of excess lines between members
+└── inside_class_members/    # Tests deletion of excess lines inside methods
+```
+
+Run auto-fix tests:
+```bash
+cargo test --package lintal_linter --test autofix_roundtrip -- --nocapture
+```
 
 ## Known Limitations
 
@@ -113,4 +139,6 @@ cargo test --package lintal_linter --test checkstyle_emptylineseparator test_pos
 - Added smart "comment attached to code" detection
 - Added array initializer gap handling for both sides
 - Fixed test parser for "violation above this line" pattern
-- Current: 100.0% detection rate
+- Achieved 100.0% detection rate
+- Added auto-fix support for all violation types
+- Created 3 auto-fix roundtrip test fixtures
