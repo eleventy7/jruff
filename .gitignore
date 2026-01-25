@@ -17,3 +17,8 @@ Thumbs.db
 *.dylib
 *.dll
 .history/
+
+# Profiling
+flamegraph*.svg
+*.trace
+perf.data*
