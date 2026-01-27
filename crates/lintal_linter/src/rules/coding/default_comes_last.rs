@@ -103,6 +103,12 @@ impl Rule for DefaultComesLast {
                 continue;
             }
 
+            // Check if default falls through to the last group
+            // Pattern: `default:` followed by `case X:` with shared code at the end
+            if self.default_falls_through_to_last(&children, i) {
+                continue;
+            }
+
             // Default is not in the last group
             if self.skip_if_last_and_shared_with_case {
                 // Check if default is the last label in its logical case group
@@ -172,6 +178,47 @@ impl DefaultComesLast {
             }
         }
         None
+    }
+
+    /// Check if the default at the given index falls through to the last group.
+    ///
+    /// This handles patterns like:
+    /// ```java
+    /// default:
+    /// case "backoff":
+    ///     return foo();
+    /// ```
+    /// Where `default:` has no statements and falls through to `case "backoff":`,
+    /// which IS the last group. In this case, default is effectively last.
+    fn default_falls_through_to_last(
+        &self,
+        children: &[tree_sitter::Node],
+        default_idx: usize,
+    ) -> bool {
+        // First, check if the default's own group has no statements (is a fall-through)
+        if self.group_has_statements(&children[default_idx]) {
+            // Default group has statements, so it doesn't fall through
+            return false;
+        }
+
+        // Default falls through - check if all subsequent groups until the last
+        // are either fall-throughs or we reach the last group
+        for i in (default_idx + 1)..children.len() {
+            let is_last = i == children.len() - 1;
+
+            if is_last {
+                // We reached the last group via fall-through - default is effectively last
+                return true;
+            }
+
+            // Not the last group - check if it falls through
+            if self.group_has_statements(&children[i]) {
+                // This group has statements but isn't the last - default doesn't reach last
+                return false;
+            }
+        }
+
+        false
     }
 
     /// Check if any fall-through groups before the given index have case labels.
@@ -416,6 +463,54 @@ class Test {
         // With option: still a violation (default is followed by case 2 before break)
         let violations = check_source_with_config(source, true);
         assert_eq!(violations.len(), 1);
+    }
+
+    #[test]
+    fn test_default_falls_through_to_last_no_violation() {
+        // Pattern from artio: default: followed by case X: at the end
+        let source = r#"
+class Test {
+    void method(String s) {
+        switch (s) {
+            case "a":
+                return;
+            case "b":
+                return;
+            default:
+            case "c":
+                return;
+        }
+    }
+}
+"#;
+        let violations = check_source(source);
+        assert!(
+            violations.is_empty(),
+            "Default falls through to last group - no violation, got {:?}",
+            violations
+        );
+    }
+
+    #[test]
+    fn test_default_falls_through_but_not_to_last_violation() {
+        // default: falls through but not to the last group
+        let source = r#"
+class Test {
+    void method(String s) {
+        switch (s) {
+            case "a":
+                return;
+            default:
+            case "b":
+                return;
+            case "c":
+                return;
+        }
+    }
+}
+"#;
+        let violations = check_source(source);
+        assert_eq!(violations.len(), 1, "Default doesn't fall through to last");
     }
 
     #[test]
