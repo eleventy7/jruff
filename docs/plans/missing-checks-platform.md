@@ -7,8 +7,8 @@ Analysis of checkstyle rules configured in `/Users/shaunlaurens/src/platform/con
 | Category | Platform Uses | Lintal Has | Missing |
 |----------|---------------|------------|---------|
 | Checker Rules | 6 | 1 | 5 |
-| TreeWalker Rules | 61 | 32 | 29 |
-| **Total Actionable** | 67 | 33 | **16** |
+| TreeWalker Rules | 61 | 35 | 26 |
+| **Total Actionable** | 67 | 36 | **13** |
 
 Note: Several "missing" items are suppression/filter infrastructure (already supported differently) or naming rules (already implemented).
 
@@ -18,40 +18,15 @@ Note: Several "missing" items are suppression/filter infrastructure (already sup
 
 These rules can be automatically fixed with high confidence and no semantic changes.
 
-### EmptyStatement
+### ~~EmptyStatement~~ ✅ IMPLEMENTED
 **Checkstyle module:** `EmptyStatement`
-**Fix strategy:** Remove unnecessary semicolons
-**Complexity:** Low
-**Example:**
-```java
-// Before
-if (condition);  // empty statement
-{
-    doSomething();
-}
+**Status:** Implemented in lintal with auto-fix
+**Fix:** Removes unnecessary semicolons
 
-// After
-if (condition) {
-    doSomething();
-}
-```
-
-### FinalClass
+### ~~FinalClass~~ ✅ IMPLEMENTED
 **Checkstyle module:** `FinalClass`
-**Fix strategy:** Add `final` modifier to class declaration
-**Complexity:** Low
-**Example:**
-```java
-// Before
-public class Singleton {
-    private Singleton() {}
-}
-
-// After
-public final class Singleton {
-    private Singleton() {}
-}
-```
+**Status:** Implemented in lintal with auto-fix
+**Fix:** Adds `final` modifier to classes with only private constructors
 
 ### ~~DefaultComesLast~~ ✅ IMPLEMENTED
 **Checkstyle module:** `DefaultComesLast`
@@ -63,22 +38,10 @@ public final class Singleton {
 **Status:** Implemented in lintal with auto-fix
 **Fix:** `str == "literal"` → `"literal".equals(str)` (null-safe)
 
-### SimplifyBooleanExpression
+### ~~SimplifyBooleanExpression~~ ✅ IMPLEMENTED
 **Checkstyle module:** `SimplifyBooleanExpression`
-**Fix strategy:** Simplify boolean expressions
-**Complexity:** Medium
-**Example:**
-```java
-// Before
-if (b == true) { }
-if (b == false) { }
-if (!b == true) { }
-
-// After
-if (b) { }
-if (!b) { }
-if (!b) { }
-```
+**Status:** Implemented in lintal with auto-fix
+**Fix:** Simplifies `b == true` → `b`, `b == false` → `!b`, etc.
 
 ---
 
@@ -243,7 +206,7 @@ For reference, these platform checks are already working:
 
 **Blocks:** LeftCurly, RightCurly, NeedBraces, EmptyBlock, EmptyCatchBlock, AvoidNestedBlocks
 
-**Modifiers:** ModifierOrder, FinalParameters, RedundantModifier, FinalLocalVariable
+**Modifiers:** FinalClass, FinalLocalVariable, FinalParameters, ModifierOrder, RedundantModifier
 
 **Style:** UpperEll, ArrayTypeStyle
 
