@@ -7,8 +7,8 @@ Analysis of checkstyle rules configured in `/Users/shaunlaurens/src/platform/con
 | Category | Platform Uses | Lintal Has | Missing |
 |----------|---------------|------------|---------|
 | Checker Rules | 6 | 1 | 5 |
-| TreeWalker Rules | 61 | 30 | 31 |
-| **Total Actionable** | 67 | 31 | **18** |
+| TreeWalker Rules | 61 | 32 | 29 |
+| **Total Actionable** | 67 | 33 | **16** |
 
 Note: Several "missing" items are suppression/filter infrastructure (already supported differently) or naming rules (already implemented).
 
@@ -53,37 +53,15 @@ public final class Singleton {
 }
 ```
 
-### DefaultComesLast
+### ~~DefaultComesLast~~ ✅ IMPLEMENTED
 **Checkstyle module:** `DefaultComesLast`
-**Fix strategy:** Move default case to end of switch
-**Complexity:** Medium
-**Example:**
-```java
-// Before
-switch (x) {
-    default: break;
-    case 1: return;
-}
+**Status:** Implemented in lintal (detection only, no auto-fix)
+**Config:** Supports `skipIfLastAndSharedWithCase` option
 
-// After
-switch (x) {
-    case 1: return;
-    default: break;
-}
-```
-
-### StringLiteralEquality
+### ~~StringLiteralEquality~~ ✅ IMPLEMENTED
 **Checkstyle module:** `StringLiteralEquality`
-**Fix strategy:** Replace `==` with `.equals()` for string comparisons
-**Complexity:** Medium (need to handle null checks)
-**Example:**
-```java
-// Before
-if (str == "literal") { }
-
-// After
-if ("literal".equals(str)) { }  // null-safe version
-```
+**Status:** Implemented in lintal with auto-fix
+**Fix:** `str == "literal"` → `"literal".equals(str)` (null-safe)
 
 ### SimplifyBooleanExpression
 **Checkstyle module:** `SimplifyBooleanExpression`
@@ -244,11 +222,11 @@ These are not linting rules but configuration/infrastructure:
 
 Based on platform usage, auto-fix capability, and complexity:
 
-1. **EmptyStatement** - Simple, safe, common issue
-2. **SimplifyBooleanExpression** - Common, improves readability
-3. **FinalClass** - Simple modifier addition
-4. **StringLiteralEquality** - Common bug pattern, safe fix
-5. **DefaultComesLast** - Straightforward reordering
+1. ~~**EmptyStatement**~~ ✅ Implemented
+2. ~~**SimplifyBooleanExpression**~~ ✅ Implemented
+3. ~~**FinalClass**~~ ✅ Implemented
+4. ~~**StringLiteralEquality**~~ ✅ Implemented
+5. ~~**DefaultComesLast**~~ ✅ Implemented
 6. **HideUtilityClassConstructor** - Simple code addition
 7. **MutableException** - Simple modifier addition
 8. **MethodLength** - Check-only, useful metric
@@ -271,6 +249,6 @@ For reference, these platform checks are already working:
 
 **Imports:** RedundantImport, UnusedImports
 
-**Coding:** OneStatementPerLine, MultipleVariableDeclarations, SimplifyBooleanReturn
+**Coding:** DefaultComesLast, EmptyStatement, MultipleVariableDeclarations, OneStatementPerLine, SimplifyBooleanExpression, SimplifyBooleanReturn, StringLiteralEquality
 
 **Naming:** ConstantName, LocalFinalVariableName, LocalVariableName, MemberName, MethodName, PackageName, ParameterName, StaticVariableName, TypeName

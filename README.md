@@ -90,7 +90,7 @@ lintal fix src/ --diff
 
 ## Supported Rules
 
-lintal currently implements 42 checkstyle rules. We validate against checkstyle's own test fixtures and real-world projects.
+lintal currently implements 44 checkstyle rules. We validate against checkstyle's own test fixtures and real-world projects.
 
 **Status key:**
 - ✓ = Passes all checkstyle test fixtures
@@ -151,15 +151,17 @@ All rules achieve zero false positives on real-world projects (Aeron, Artio, Agr
 | UnusedImports | ✅ | ✓ |
 | RedundantImport | ✅ | ✓ |
 
-### Coding (5 rules)
+### Coding (7 rules)
 
 | Rule | Auto-fix | Status |
 |------|----------|--------|
-| OneStatementPerLine | ✅ | ✓ |
-| MultipleVariableDeclarations | ✅ (partial) | ✓ |
-| SimplifyBooleanReturn | ❌ | ✓ |
-| SimplifyBooleanExpression | ✅ | ✓ |
+| DefaultComesLast | ❌ | ✓ |
 | EmptyStatement | ✅ | ✓ |
+| MultipleVariableDeclarations | ✅ (partial) | ✓ |
+| OneStatementPerLine | ✅ | ✓ |
+| SimplifyBooleanExpression | ✅ | ✓ |
+| SimplifyBooleanReturn | ❌ | ✓ |
+| StringLiteralEquality | ✅ | ✓ |
 
 ### Naming (9 rules)
 
